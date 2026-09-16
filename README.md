@@ -3,7 +3,7 @@
 <h1 align="center">UTUVO Orbit</h1>
 <p align="center"><strong>Your Mac. In one small orbit.</strong></p>
 <p align="center">Power, network and audio in one compact menu-bar glyph.<br>Quick controls and display preferences, together in one panel.</p>
-<p align="center"><a href="https://github.com/mickyyang-1407/utuvo-orbit/releases/latest">Download</a> · <a href="README.zh-Hant.md">繁體中文</a> · <a href="docs/USER-GUIDE.md">User guide</a> · <a href="docs/DEVELOPMENT.md">Build from source</a></p>
+<p align="center"><a href="https://mickyyang-1407.github.io/utuvo-orbit/">Website</a> · <a href="https://github.com/mickyyang-1407/utuvo-orbit/releases/latest">Download</a> · <a href="README.zh-Hant.md">繁體中文</a> · <a href="docs/USER-GUIDE.md">User guide</a> · <a href="docs/DEVELOPMENT.md">Build from source</a></p>
 
 
 **macOS 14+ · Apple Silicon download · Native SwiftUI + AppKit · MIT**

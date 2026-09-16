@@ -3,7 +3,7 @@
 <h1 align="center">UTUVO Orbit</h1>
 <p align="center"><strong>Mac 的大小事，收進一個小圓裡。</strong></p>
 <p align="center">電量／CPU、網路、音量，一眼掌握。<br>點開，常用控制與顯示偏好都在同一個面板。</p>
-<p align="center"><a href="https://github.com/mickyyang-1407/utuvo-orbit/releases/latest">下載</a> · <a href="README.md">English</a> · <a href="docs/USER-GUIDE.zh-Hant.md">使用說明</a> · <a href="docs/DEVELOPMENT.md">自行編譯</a></p>
+<p align="center"><a href="https://mickyyang-1407.github.io/utuvo-orbit/">網站</a> · <a href="https://github.com/mickyyang-1407/utuvo-orbit/releases/latest">下載</a> · <a href="README.md">English</a> · <a href="docs/USER-GUIDE.zh-Hant.md">使用說明</a> · <a href="docs/DEVELOPMENT.md">自行編譯</a></p>
 
 
 **macOS 14+ · Apple Silicon 安裝包 · 原生 SwiftUI／AppKit · MIT 開源**

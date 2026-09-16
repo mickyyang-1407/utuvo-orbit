@@ -84,3 +84,7 @@ Packaging preserves the input app's signature and ticket. The DMG still needs it
 ## Design constraints
 
 Keep the menu-bar glyph compact. Do not infer known values from missing data. Retain native SwiftUI/AppKit with availability-checked materials. Do not create new permissions, startup items, telemetry or automatic system-icon hiding as a side effect of unrelated work.
+
+## Showcase hosting
+
+The bilingual static showcase is hosted at https://mickyyang-1407.github.io/utuvo-orbit/. GitHub Pages publishes `main` → `/docs`. Edit `docs/showcase/en.html` and `docs/showcase/index.html`; source export generates the English root `docs/index.html` and `.nojekyll` marker. The root entry is generated, so do not edit it directly. Assets live under `docs/assets`, and documentation links open the rendered GitHub pages.
