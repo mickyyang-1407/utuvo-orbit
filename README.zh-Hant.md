@@ -36,7 +36,7 @@ Orbit 將三個常看的狀態，收在一顆小圖示裡。MacBook 的外圈顯
 
 同時提供 App ZIP、乾淨原始碼 ZIP 與 SHA-256 校驗碼。
 
-> 這份初始版本採 **ad-hoc 簽署，尚未經 Apple 公證**。第一次啟動可能被 Gatekeeper 阻擋；請先閱讀[安裝說明](docs/INSTALL.md)。不需要關閉系統安全防護。
+> **已簽署並通過 Apple 公證**：官方 App 與 DMG 均採 Developer ID 簽章，並已附加公證票。[安裝與驗證說明](docs/INSTALL.md)。
 
 安裝包為 **Apple Silicon／arm64**。原始碼最低目標為 macOS 14，Liquid Glass 需要 macOS 26；本版實測 macOS 27，尚未驗證 Intel 或舊系統，不宣稱 universal 支援。
 

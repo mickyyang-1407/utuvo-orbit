@@ -1,5 +1,6 @@
 #!/bin/bash
-# Local packaging only. No upload, signing identity, or notarization service.
+# Local packaging only. APP_PATH may point to an already signed/stapled app.
+# This script does not upload artifacts or call the notarization service.
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
@@ -8,7 +9,7 @@ if [[ "$(uname -m)" != arm64 ]]; then
   exit 1
 fi
 if [[ "${SKIP_BUILD:-0}" != 1 ]]; then bash scripts/build-app.sh; fi
-APP="$PWD/dist/UTUVO Orbit.app"
+APP="${APP_PATH:-$PWD/dist/UTUVO Orbit.app}"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
 OUTPUT="$PWD/release/$VERSION"
 mkdir -p "$OUTPUT"

@@ -8,11 +8,13 @@ ZIP alternative: expand `UTUVO-Orbit-0.4.1-arm64.zip`, then move the app into Ap
 
 ## Signing and the first launch
 
-This build is **ad-hoc signed, not Developer ID signed or Apple-notarized**. A valid ad-hoc signature checks bundle integrity; it does not prove an Apple-verified developer identity. Gatekeeper can block software downloaded from the internet.
+The official App and DMG are **Developer ID signed and Apple-notarized**. Both have stapled notarization tickets. The app inside the ZIP is also signed, notarized and stapled.
 
-Only if you trust this release, use the per-app option macOS offers in **System Settings → Privacy & Security → Open Anyway** after the blocked launch. Follow Apple's current [instructions for opening apps safely](https://support.apple.com/en-us/102445). If that option is unavailable or your Mac is managed, use a source build or contact your administrator. Do not disable Gatekeeper or run a blanket quarantine-removal command.
+The signing identity is **Developer ID Application: MIN CHI YANG (RPNT54P79S)**. macOS may still show the usual confirmation that an app was downloaded from the internet. No Gatekeeper or quarantine changes are needed. Local builds made with `scripts/build-app.sh` remain ad-hoc signed; notarization applies to the official release downloads.
 
-**繁中摘要：** 開啟 DMG，將 Orbit 拖到 Applications，再從 Applications 啟動。本包尚未公證，首次啟動可能被擋；只有在信任下載來源時，依 macOS「隱私權與安全性」提供的個別 App 開啟選項操作。不要關閉 Gatekeeper。
+If you downloaded the initial ad-hoc package, download the refreshed 0.4.1 package from Releases and replace the old app. The version and features are unchanged; the signatures, tickets and checksums have changed. If macOS reports damage or an unidentified developer, verify the download against the latest checksum file and download it again from the official release.
+
+**繁中摘要：** 官方 App 與 DMG 已完成 Developer ID 簽署、Apple 公證與公證票附加；ZIP 內的 App 亦同。開啟 DMG，拖曳到 Applications，再啟動即可。macOS 仍可能顯示一般的網路下載確認。若先前下載的是未公證版本，請重新下載 0.4.1 並替換；功能與版本不變，簽章及校驗碼已更新。
 
 ## Verify the download
 
@@ -23,6 +25,19 @@ shasum -a 256 -c SHA256SUMS.txt
 ```
 
 For a single file, run `shasum -a 256 UTUVO-Orbit-0.4.1-arm64.dmg` and compare its result with the matching line in the checksum file. A checksum establishes file equality, not publisher identity.
+
+### Verify signing and notarization
+
+After mounting the disk image:
+
+```sh
+spctl --assess --type open --context context:primary-signature --verbose=2 UTUVO-Orbit-0.4.1-arm64.dmg
+xcrun stapler validate UTUVO-Orbit-0.4.1-arm64.dmg
+spctl --assess --type execute --verbose=2 "/Volumes/UTUVO Orbit/UTUVO Orbit.app"
+xcrun stapler validate "/Volumes/UTUVO Orbit/UTUVO Orbit.app"
+```
+
+Gatekeeper assessment should report `accepted` and `Notarized Developer ID`. `stapler` should report that validation worked. These are read-only checks; `stapler` requires Apple's command-line developer tools.
 
 ## Requirements
 

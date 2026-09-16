@@ -2,6 +2,8 @@
 
 ## 0.4.1 — English + Traditional Chinese
 
+- September 16 signing refresh: official App and DMG now use Developer ID signing and Apple notarization, with stapled tickets. Same app version/build and features; release files and checksums refreshed.
+
 - Full English interface, including menus, state descriptions, tooltips and accessibility labels.
 - A footer language menu: System, English and 繁體中文. Changes apply immediately and persist.
 - Real English screenshots, bilingual showcase pages, updated release artwork and bundled localization resources.

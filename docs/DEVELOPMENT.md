@@ -67,6 +67,20 @@ bash scripts/package-release.sh
 
 Produces Apple Silicon app ZIP, drag-install DMG, source ZIP and SHA-256 checksums in `release/0.4.1/`. The packaging script creates an isolated temporary Python environment with `ds-store==1.3.3` and `mac-alias==2.2.3` to write Finder layout metadata; these are build tools, not shipped runtime dependencies. Packaging does not upload, notarize or change Gatekeeper. The curated source export excludes local handoffs, evidence, diagnostics and retired prototype code.
 
+### Official signing / notarization
+
+The default local build remains ad-hoc signed. The official 0.4.1 downloads are Developer ID signed with Hardened Runtime and a secure timestamp, then submitted to Apple's notary service. No signing credentials are stored in this repository.
+
+Release sequence: sign an isolated copy of the app → submit its ZIP with `notarytool` → require `Accepted` → staple and validate the app → package that app → sign and submit the DMG → require `Accepted` → staple and validate the DMG → regenerate checksums. Verify Gatekeeper on both the DMG and the app inside it. This requires your own Developer ID certificate and a configured Keychain notarization profile.
+
+To package an already signed/stapled app without rebuilding it:
+
+```sh
+SKIP_BUILD=1 APP_PATH="/absolute/path/UTUVO Orbit.app" bash scripts/package-release.sh
+```
+
+Packaging preserves the input app's signature and ticket. The DMG still needs its own Developer ID signature, notarization and ticket; packaging alone does not perform those steps. Regenerate `SHA256SUMS.txt` after stapling.
+
 ## Design constraints
 
 Keep the menu-bar glyph compact. Do not infer known values from missing data. Retain native SwiftUI/AppKit with availability-checked materials. Do not create new permissions, startup items, telemetry or automatic system-icon hiding as a side effect of unrelated work.

@@ -20,7 +20,7 @@ A native macOS menu-bar utility that combines power, network and audio into one 
 
 下載與原始碼：https://github.com/mickyyang-1407/utuvo-orbit
 
-安裝包目前採 ad-hoc 簽署、尚未 Apple 公證；請先看安裝說明。截圖為示範資料。
+App 與 DMG 已採 Developer ID 簽署並通過 Apple 公證；安裝方式見說明。截圖為示範資料。
 
 ## English launch post
 
@@ -32,7 +32,7 @@ Switch between English and Traditional Chinese instantly from the footer. Displa
 
 MIT source and Apple Silicon downloads are ready. Contributions and focused bug reports are welcome.
 
-Source and downloads: https://github.com/mickyyang-1407/utuvo-orbit. Initial binaries are ad-hoc signed, not Apple-notarized; see the installation guide. Screenshots use demo data.
+Source and downloads: https://github.com/mickyyang-1407/utuvo-orbit. Official binaries are Developer ID signed and Apple-notarized, with stapled tickets; see the installation guide. Screenshots use demo data.
 
 ## Screenshot captions
 

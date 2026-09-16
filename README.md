@@ -51,7 +51,7 @@ Classic mode uses three separate symbols. Orbit does not automatically hide Appl
 
 A ZIP of the same app is also available, along with `SHA256SUMS.txt` and a clean source archive.
 
-> **Distribution status:** this initial build is ad-hoc signed, not Apple-notarized. Gatekeeper may block its first launch. [Installation and verification](docs/INSTALL.md) explains what to expect. We do not ask you to disable Gatekeeper.
+> **Signed & notarized:** the official App and DMG use Developer ID signing and have passed Apple notarization, with tickets stapled to both. [Installation and verification](docs/INSTALL.md).
 
 The downloadable app is **Apple Silicon (arm64)**. The source targets **macOS 14+**; Liquid Glass needs **macOS 26+**. This release was exercised on **macOS 27**. Intel and older macOS releases have not been validated; no universal-binary claim is made.
 
