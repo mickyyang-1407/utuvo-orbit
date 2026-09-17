@@ -12,6 +12,7 @@ files = [
     'Resources/AppIcon.icns', 'Resources/app-icon.png',
     'scripts/build-app.sh', 'scripts/render-brand.swift', 'scripts/render-release-art.swift',
     'scripts/package-release.sh', 'scripts/dmg-layout.py', 'scripts/export-source.py',
+    'scripts/optimize-web-images.py',
     'docs/INSTALL.md', 'docs/USER-GUIDE.md', 'docs/USER-GUIDE.zh-Hant.md',
     'docs/DEVELOPMENT.md', 'docs/LAUNCH-COPY.md',
 ]

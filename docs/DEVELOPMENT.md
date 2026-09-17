@@ -88,3 +88,7 @@ Keep the menu-bar glyph compact. Do not infer known values from missing data. Re
 ## Showcase hosting
 
 The bilingual static showcase is hosted at https://mickyyang-1407.github.io/utuvo-orbit/. GitHub Pages publishes `main` → `/docs`. Edit `docs/showcase/en.html` and `docs/showcase/index.html`; source export generates the English root `docs/index.html` and `.nojekyll` marker. The root entry is generated, so do not edit it directly. Assets live under `docs/assets`, and documentation links open the rendered GitHub pages.
+
+### Web images
+
+Keep the original PNG artwork and screenshots. Generate WebP files for the showcase with `python3 scripts/optimize-web-images.py` (requires `cwebp` from libwebp, available with `brew install webp`). The hero has 640/960/1280/1672-pixel variants selected with `srcset`; it loads eagerly at high priority. Screenshots retain their full resolution and load lazily. The light/dark switch uses the same compressed files.
