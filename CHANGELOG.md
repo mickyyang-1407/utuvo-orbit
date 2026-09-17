@@ -1,6 +1,6 @@
 # Changelog
 
-## Unreleased
+## 0.4.2 — 2026-09-17
 
 - Fixed: the menu-bar glyph redrew itself in a loop (status-item replicant refresh re-fired the appearance observer), burning 60–90 % of one CPU core while idle. The observer now redraws only when light/dark actually changes. Idle CPU measured at 0.3 % after the fix.
 

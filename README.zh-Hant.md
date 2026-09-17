@@ -30,7 +30,7 @@ Orbit 將三個常看的狀態，收在一顆小圖示裡。MacBook 的外圈顯
 
 ## 安裝
 
-1. 從 [Releases](https://github.com/mickyyang-1407/utuvo-orbit/releases/latest) 下載 **UTUVO-Orbit-0.4.1-arm64.dmg**。
+1. 從 [Releases](https://github.com/mickyyang-1407/utuvo-orbit/releases/latest) 下載 **UTUVO-Orbit-0.4.2-arm64.dmg**。
 2. 開啟後，將 **UTUVO Orbit** 拖進 **Applications**。
 3. 從 Applications 啟動，在上方選單列找到 Orbit。
 

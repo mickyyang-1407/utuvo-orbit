@@ -45,7 +45,7 @@ Classic mode uses three separate symbols. Orbit does not automatically hide Appl
 
 ## Install
 
-1. Download **UTUVO-Orbit-0.4.1-arm64.dmg** from [Releases](https://github.com/mickyyang-1407/utuvo-orbit/releases/latest).
+1. Download **UTUVO-Orbit-0.4.2-arm64.dmg** from [Releases](https://github.com/mickyyang-1407/utuvo-orbit/releases/latest).
 2. Open the disk image and drag **UTUVO Orbit** into **Applications**.
 3. Launch it from Applications. Look in the menu bar; Orbit has no Dock icon.
 
