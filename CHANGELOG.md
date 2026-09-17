@@ -1,5 +1,9 @@
 # Changelog
 
+## Unreleased
+
+- Fixed: the menu-bar glyph redrew itself in a loop (status-item replicant refresh re-fired the appearance observer), burning 60–90 % of one CPU core while idle. The observer now redraws only when light/dark actually changes. Idle CPU measured at 0.3 % after the fix.
+
 ## 0.4.1 — English + Traditional Chinese
 
 - September 16 signing refresh: official App and DMG now use Developer ID signing and Apple notarization, with stapled tickets. Same app version/build and features; release files and checksums refreshed.

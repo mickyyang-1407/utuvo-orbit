@@ -28,6 +28,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var awakeBackend: AwakeBackend!
     private var cancellables = Set<AnyCancellable>()
     private var appearanceObservation: NSKeyValueObservation?
+    /// Light/dark state the menu-bar glyph was last rendered for.
+    private var lastIconIsDark: Bool?
     private var galleryWindow: NSWindow?
     /// Mirrors the panel's in-memory `pin` state (via `onPinChanged`).
     /// `preferencesModel.values.pin` is NOT this value — pin was
@@ -215,8 +217,17 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         monitor.$snapshot.combineLatest(preferencesModel.$values)
             .receive(on: RunLoop.main).sink { [weak self] _, _ in self?.updateIcon() }.store(in: &cancellables)
         if let button = item.button {
-            appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] _, _ in
-                Task { @MainActor in self?.updateIcon() }
+            // Only redraw when light/dark actually flips. Setting
+            // `button.image` inside `updateIcon()` makes AppKit refresh the
+            // status-item replicant, which re-applies the button's
+            // appearance and fires this KVO again — without the guard that
+            // is a self-sustaining loop (measured 60–90 % CPU idle).
+            appearanceObservation = button.observe(\.effectiveAppearance, options: [.new]) { [weak self] button, _ in
+                let dark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+                Task { @MainActor in
+                    guard let self, self.lastIconIsDark != dark else { return }
+                    self.updateIcon()
+                }
             }
         }
         updateIcon()
@@ -254,6 +265,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private func updateIcon() {
         guard let button = statusItem?.button else { return }
         let dark = button.effectiveAppearance.bestMatch(from: [.darkAqua, .aqua]) == .darkAqua
+        lastIconIsDark = dark
         let s = monitor.snapshot
         let prefs = preferencesModel.values
         let l = OrbitStrings(language: prefs.language)
