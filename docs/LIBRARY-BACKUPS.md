@@ -1,6 +1,6 @@
 # Portable library backups — 0.12 source candidate
 
-Back up Notes, Snippets or Quicklinks individually as a lossless JSON file. This is a local transfer tool for moving a library to another Mac. It does not back up the whole app, clipboard history, preferences or other libraries, and it is not cloud sync. The candidate's native GUI checks remain pending for the nightly session.
+Back up Notes, Snippets or Quicklinks individually as a lossless JSON file. This is a local transfer tool for moving a library to another Mac. It does not back up the whole app, clipboard history, preferences or other libraries, and it is not cloud sync. Isolated English/light and Traditional Chinese/dark GUI checks passed import, no-op/conflict protection and export-to-fresh-library round trips. These checks use synthetic libraries and do not claim live user-data migration.
 
 ## Export
 

@@ -1,5 +1,13 @@
 # Changelog
 
+## 0.12.1 (18) — local native-capture candidate
+
+- Replaces the failing selected-content screenshot backend with one complete native screen frame, then stops capture before returning the image. No audio, microphone capture or recording file is created.
+- Adds a separate frame deadline and protects cancellation, teardown, duplicate callbacks and retries.
+- Adds an isolated Debug verification entry with fixture-only selection and fake clipboard receipts; ordinary Release excludes it.
+- Direct/MAS Release builds, four fake-driver lifecycle tests and five screenshot-model tests pass; independent Gemini review passes. On macOS 27 the actual product backend captured the designated generated Card through macOS per-window sharing confirmation: 1240×864 native input, 1120×724 crop, opaque redaction, PNG/OCR and pixel-identical image/File Tools copies passed. App and system-picker cancellation restored controls. This fixture acceptance does not cover display capture or automated Show All Windows selection; the latter became unreliable in the UI automation and was stopped without changing system permissions. Stable downloads, update feed and App Store Connect are unchanged.
+
+
 ## 0.12.0 (17) — local candidate, GUI acceptance pending
 
 - Adds per-library JSON backups and previewed merge imports for Notes, Snippets and Quicklinks, preserving text, IDs, pins, dates, keywords and Recently Deleted.

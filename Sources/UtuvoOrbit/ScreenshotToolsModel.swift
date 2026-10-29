@@ -255,7 +255,9 @@ final class ScreenshotToolsModel: ObservableObject {
         failed = true
         switch error {
         case ScreenshotCaptureError.unavailable: message = l("系統截圖選擇器目前不可用，請使用 ⌘⇧4 截圖後匯入。")
+        case ScreenshotCaptureError.selectionRejected: message = ToolCopy(language: language)("所選內容不符合擷取條件，請重新選擇。", "The selected content is not eligible for capture. Choose another window or display.")
         case ScreenshotCaptureError.selectionTimedOut: message = ToolCopy(language: language)("選取已逾時。請重新擷取，並在系統選擇器中選取視窗或螢幕。", "Selection timed out. Try again and choose a window or display in the system picker.")
+        case ScreenshotCaptureError.frameTimedOut: message = ToolCopy(language: language)("沒有及時收到完整畫面。請重新擷取。", "No complete frame arrived in time. Try the capture again.")
         case ScreenshotEditError.invalidSelection: message = l("請在圖片內拖出有效範圍。")
         case ScreenshotEditError.tooLarge, ScreenshotCaptureError.invalidSize: message = l("圖片超過可處理尺寸。")
         default: message = l("無法完成截圖操作：%@", error.localizedDescription)

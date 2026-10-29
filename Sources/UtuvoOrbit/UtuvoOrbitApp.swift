@@ -3,6 +3,10 @@ import Combine
 import SwiftUI
 import OrbitCore
 import ShelfKit
+import ClotheslineKit
+#if DEBUG
+@preconcurrency import ScreenCaptureKit
+#endif
 
 @main
 struct UtuvoOrbitMain {
@@ -101,10 +105,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG && ORBIT_NATIVE_CAPTURE_QA
+        launchNativeCaptureQA()
+        #else
+        let args = CommandLine.arguments
         #if ORBIT_UPDATE_VERIFICATION && !MAS
         let verification = OrbitUpdateVerification(); updateVerification = verification; verification.start(); return
         #endif
-        let args = CommandLine.arguments
         if args.contains("--tools-preview") {
             showToolsPreview(args: args)
             return
@@ -356,7 +363,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in self?.showPopover() }
         }
         installEscapeMonitor()
+        #endif
     }
+
+    #if DEBUG && ORBIT_NATIVE_CAPTURE_QA
+    private func launchNativeCaptureQA() {
+        guard Bundle.main.bundleIdentifier == "com.utuvo.orbit.captureqa20261030" else {
+            NSApp.terminate(nil); return
+        }
+        guard let output = Self.prepareNativeCaptureQAOutput() else {
+            NSApp.terminate(nil); return
+        }
+        showToolsPreview(args: ["--tools-tab", "screenshots", "--tools-qa-file-actions"], nativeCaptureQAOutput: output)
+    }
+    #endif
 
     func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
         guard let toolsWindow else { return .terminateNow }
@@ -631,7 +651,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// hung on `NSApp.terminate` in testing — a real "capture the settings
     /// sheet" export would need to click the gear button and wait for the
     /// sheet's own lifecycle, not force one open synchronously.
-    private func showToolsPreview(args: [String]) {
+    private func showToolsPreview(args: [String], nativeCaptureQAOutput: URL? = nil) {
         let values = OrbitPreferencesValues(theme: args.contains("--light") ? .light : .dark,
                                             language: AppLanguage(rawValue: Self.argValue(args, after: "--language") ?? "en") ?? .english)
         let preferences = OrbitPreferencesModel(backend: FakePreferencesBackend(initial: values, legacy: nil))
@@ -645,18 +665,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if args.contains("--pomodoro") { timer.pomodoro = true }
         #if DEBUG
         let allowFileActions = args.contains("--tools-qa-file-actions")
-        let screenshotCapture: any ScreenshotCapturing = args.contains("--tools-qa-capture") ? SystemScreenshotCapture() : PreviewScreenshotCapture()
+        let screenshotCapture: any ScreenshotCapturing
+        if nativeCaptureQAOutput != nil {
+            screenshotCapture = SystemScreenshotCapture(excludedBundleIDs: Self.nativeCaptureQAExcludedBundleIDs(),
+                                                        eligibleFilter: Self.isKnownNativeCaptureQACard)
+        }
+        else if args.contains("--tools-qa-capture") { screenshotCapture = SystemScreenshotCapture() }
+        else { screenshotCapture = PreviewScreenshotCapture() }
+        let copyImage: (CGImage) -> Void = { image in
+            guard let nativeCaptureQAOutput else { return }
+            try? ScreenshotEditing.writePNG(image, to: nativeCaptureQAOutput.appendingPathComponent("clipboard-image.png"))
+        }
+        let copyText: (String) -> Void = { text in
+            guard let nativeCaptureQAOutput else { return }
+            try? Data(text.utf8).write(to: nativeCaptureQAOutput.appendingPathComponent("clipboard-text.txt"), options: .atomic)
+        }
         #else
         let allowFileActions = false
         let screenshotCapture: any ScreenshotCapturing = PreviewScreenshotCapture()
+        let copyImage: (CGImage) -> Void = { _ in }
+        let copyText: (String) -> Void = { _ in }
         #endif
-        let screenshots = ScreenshotToolsModel(capture: screenshotCapture, preview: true, copyImage: { _ in }, copyText: { _ in })
+        let screenshots = ScreenshotToolsModel(capture: screenshotCapture, preview: true, copyImage: copyImage, copyText: copyText)
         screenshots.loadFixture()
         let tools = OrbitToolsWindowController(preferences: preferences, scenes: scenes, timer: timer, preview: true,
                                               allowFileActionsInPreview: allowFileActions, screenshots: screenshots)
         toolsWindow = tools
         tools.files.setFiles([URL(fileURLWithPath: "/fixture/cover.png"), URL(fileURLWithPath: "/fixture/notes.txt")])
-        tools.show(page: OrbitToolsNavigation.Page(rawValue: Self.argValue(args, after: "--tools-tab") ?? "modes") ?? .modes)
+        let initialPage = nativeCaptureQAOutput == nil ? (Self.argValue(args, after: "--tools-tab") ?? "modes") : "screenshots"
+        tools.show(page: OrbitToolsNavigation.Page(rawValue: initialPage) ?? .modes)
         if let seconds = Self.argValue(args, after: "--timer-seconds").flatMap(Double.init) { timer.start(seconds: seconds) }
         if let path = Self.argValue(args, after: "--snapshot"), let view = tools.window?.contentView {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -664,6 +701,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
     }
+
+    #if DEBUG
+    private static let nativeCaptureQACardBundleID = "com.utuvo.orbit.capturecard20261029"
+
+    private static func prepareNativeCaptureQAOutput() -> URL? {
+        guard let path = Bundle.main.object(forInfoDictionaryKey: "OrbitCaptureQAOutputDirectory") as? String else { return nil }
+        let output = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        let temporaryRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).standardizedFileURL.path
+        guard output.path.hasPrefix(temporaryRoot + "/"), !FileManager.default.fileExists(atPath: output.path) else { return nil }
+        do {
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+            let marker = ["bundle": Bundle.main.bundleIdentifier ?? "", "kind": "native-single-frame-qa"]
+            let data = try JSONSerialization.data(withJSONObject: marker, options: [.sortedKeys])
+            try data.write(to: output.appendingPathComponent("session.json"), options: .atomic)
+            return output
+        } catch { return nil }
+    }
+
+    private static func nativeCaptureQAExcludedBundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
+            .filter { $0 != nativeCaptureQACardBundleID })
+    }
+
+    private static func isKnownNativeCaptureQACard(_ filter: SCContentFilter) -> Bool {
+        guard #available(macOS 15.2, *) else { return false }
+        guard filter.style == .window, filter.includedWindows.count == 1,
+              let window = filter.includedWindows.first else { return false }
+        return window.title == "Orbit Test Card 20261029"
+            && window.owningApplication?.bundleIdentifier == nativeCaptureQACardBundleID
+            && filter.contentRect.width == 620
+            && filter.contentRect.height == 432
+    }
+    #endif
 
     private func showSettingsPreview(args: [String]) {
         let name = "orbit.settings.preview.\(UUID().uuidString)"
