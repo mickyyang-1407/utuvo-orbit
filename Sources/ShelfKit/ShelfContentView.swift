@@ -47,7 +47,8 @@ final class ShelfContentView: NSView, NSDraggingSource {
         didSet { tail.isOnLeft = petOnLeft; needsLayout = true }
     }
     var startSession: (([NSDraggingItem], NSEvent) -> Void)?
-    /// Set by the host app (UTUVO Orbit's trial/unlock gate). `nil` accepts drops.
+    /// Optional host-app gate. Orbit is free and sets no gate, so `nil`
+    /// accepts every drop.
     var dropGate: (() -> Bool)?
     var onGatedDrop: (() -> Void)?
     var acceptsIncomingDrops: Bool { dropGate?() ?? true }

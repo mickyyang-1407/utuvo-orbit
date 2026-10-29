@@ -1,0 +1,173 @@
+# UTUVO Orbit — Mac App Store edition (xcodegen → UTUVOOrbitMAS.xcodeproj).
+# The Developer-ID DMG build is unaffected: it stays on SwiftPM via
+# scripts/build-app.sh and never defines the MAS compilation condition.
+# Regenerate: /opt/homebrew/bin/xcodegen generate --spec project.yml
+name: UTUVOOrbitMAS
+options:
+  bundleIdPrefix: app.utuvo
+  deploymentTarget:
+    macOS: "14.0"
+  createIntermediateGroups: true
+settings:
+  base:
+    DEVELOPMENT_TEAM: RPNT54P79S
+    CODE_SIGN_STYLE: Automatic
+    MARKETING_VERSION: "0.11.0"
+    CURRENT_PROJECT_VERSION: "16"
+    MACOSX_DEPLOYMENT_TARGET: "14.0"
+    SWIFT_VERSION: "6.0"
+    SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) MAS"
+    ARCHS: arm64
+    ENABLE_USER_SCRIPT_SANDBOXING: YES
+    DEAD_CODE_STRIPPING: YES
+  configs:
+    Debug:
+      SWIFT_ACTIVE_COMPILATION_CONDITIONS: "$(inherited) DEBUG MAS"
+targets:
+  OrbitCore:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Sources/OrbitCore
+      - path: MAS/Shims
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.utuvo.orbit.OrbitCore
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        DEFINES_MODULE: YES
+        ENABLE_HARDENED_RUNTIME: YES
+  # Optional modules (Settings › Modules). ShelfKit = the cat-tail file
+  # shelf formerly shipped as UTUVO Drop (kept in Swift 5 mode as shipped);
+  # ClotheslineKit = the screenshot clothesline (formerly 晾好了 LineDry).
+  ShelfKit:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Sources/ShelfKit
+        excludes: [Assets]
+      - path: Sources/ShelfKit/Assets
+        type: folder
+        buildPhase: resources
+      - path: MAS/ShelfKitShims
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.utuvo.orbit.ShelfKit
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        DEFINES_MODULE: YES
+        ENABLE_HARDENED_RUNTIME: YES
+        SWIFT_VERSION: "5.0"
+  ClotheslineKit:
+    type: framework
+    platform: macOS
+    sources:
+      - path: Sources/ClotheslineKit
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.utuvo.orbit.ClotheslineKit
+        GENERATE_INFOPLIST_FILE: YES
+        SKIP_INSTALL: YES
+        DEFINES_MODULE: YES
+        ENABLE_HARDENED_RUNTIME: YES
+  UTUVOOrbitMAS:
+    type: application
+    platform: macOS
+    sources:
+      - path: Sources/UtuvoOrbit
+      - path: MAS/Sources
+      - path: MAS/Assets.xcassets
+    dependencies:
+      - target: OrbitCore
+        embed: true
+      - target: ShelfKit
+        embed: true
+      - target: ClotheslineKit
+        embed: true
+    info:
+      path: MAS/Info.plist
+      properties:
+        CFBundleDevelopmentRegion: en
+        CFBundleDisplayName: UTUVO Orbit
+        CFBundleName: UTUVO Orbit
+        CFBundleExecutable: $(EXECUTABLE_NAME)
+        CFBundleIdentifier: $(PRODUCT_BUNDLE_IDENTIFIER)
+        CFBundleIconName: AppIcon
+        CFBundleIconFile: AppIcon
+        CFBundleInfoDictionaryVersion: "6.0"
+        CFBundlePackageType: APPL
+        CFBundleShortVersionString: $(MARKETING_VERSION)
+        CFBundleVersion: $(CURRENT_PROJECT_VERSION)
+        CFBundleLocalizations: [en, zh-Hant]
+        LSMinimumSystemVersion: $(MACOSX_DEPLOYMENT_TARGET)
+        LSUIElement: true
+        LSApplicationCategoryType: public.app-category.utilities
+        ITSAppUsesNonExemptEncryption: false
+        NSHighResolutionCapable: true
+        NSScreenCaptureUsageDescription: Orbit captures the window or display you choose once, for local editing and export.
+        NSHumanReadableCopyright: © 2026 UTUVO
+        NSSupportsAutomaticTermination: true
+        NSSupportsSuddenTermination: false
+    entitlements:
+      path: MAS/UTUVOOrbitMAS.entitlements
+      properties:
+        com.apple.security.app-sandbox: true
+        # CoreWLAN returns no interface inside the sandbox without this
+        # (measured 2026-10-01: interface() nil → en1 / RSSI -62 with it).
+        # Used only for the Wi-Fi signal-strength bars; Orbit opens no
+        # network connections and never reads the SSID.
+        com.apple.security.network.client: true
+        # Clothesline module only: the user picks their screenshot folder in
+        # an open panel (read the new screenshots; "Keep Desktop clear" and
+        # clean-up move tracked originals to the Trash; "Archive to folder"
+        # writes a copy into a folder the user picks). The bookmark keeps
+        # that one folder readable after relaunch. The file shelf needs no
+        # entitlement: dragged-in files arrive with the system's own
+        # per-drag sandbox extension.
+        com.apple.security.files.user-selected.read-write: true
+        com.apple.security.files.bookmarks.app-scope: true
+        # UTUVO Drop (merged into Orbit) hands its signed unlock transaction
+        # over through this team-prefixed group container; Orbit verifies
+        # Apple's signature before honouring it (MAS/Sources/DropHandoff.swift).
+        com.apple.security.application-groups: [RPNT54P79S.app.utuvo.handoff]
+    settings:
+      base:
+        PRODUCT_NAME: UTUVO Orbit
+        PRODUCT_MODULE_NAME: UtuvoOrbit
+        EXECUTABLE_NAME: UtuvoOrbit
+        PRODUCT_BUNDLE_IDENTIFIER: app.utuvo.orbit
+        ASSETCATALOG_COMPILER_APPICON_NAME: AppIcon
+        ENABLE_HARDENED_RUNTIME: YES
+        CODE_SIGN_ENTITLEMENTS: MAS/UTUVOOrbitMAS.entitlements
+        LD_RUNPATH_SEARCH_PATHS: "$(inherited) @executable_path/../Frameworks"
+  UTUVOOrbitMASTests:
+    type: bundle.unit-test
+    platform: macOS
+    sources:
+      - path: MAS/Tests
+    dependencies:
+      - target: UTUVOOrbitMAS
+    settings:
+      base:
+        PRODUCT_BUNDLE_IDENTIFIER: app.utuvo.orbit.tests
+        GENERATE_INFOPLIST_FILE: YES
+        TEST_HOST: "$(BUILT_PRODUCTS_DIR)/UTUVO Orbit.app/Contents/MacOS/UtuvoOrbit"
+        BUNDLE_LOADER: "$(TEST_HOST)"
+schemes:
+  UTUVOOrbitMAS:
+    build:
+      targets:
+        UTUVOOrbitMAS: all
+        UTUVOOrbitMASTests: [test]
+    run:
+      config: Debug
+    test:
+      config: Debug
+      targets:
+        - UTUVOOrbitMASTests
+    profile:
+      config: Release
+    analyze:
+      config: Debug
+    archive:
+      config: Release

@@ -77,26 +77,27 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var updateVerification: OrbitUpdateVerification?
     #endif
     #if MAS
-    /// Mac App Store edition only: 7-day trial + one-time unlock. `nil` in
-    /// the isolated diagnose/gallery/snapshot modes, which never reach the
-    /// status item.
-    private var store: UTUVOStore?
-    private var paywall: OrbitPaywallWindowController?
-    /// The first resolved entitlement opens the paywall once if the panel is
-    /// locked — an LSUIElement app has no window to discover otherwise.
-    private var didResolveInitialAccess = false
-    /// Verified UTUVO Drop purchase carried over through the shared group
-    /// container (see `DropHandoff`). Read at launch and on Restore.
-    private var dropHandoff = DropHandoff.Result(dropWasUsed: false, dropUnlockVerified: false)
-    #if DEBUG
-    private var qaFullAccess = false
-    #endif
+    /// UTUVO Drop adoption marker read from the shared group container (see
+    /// `DropHandoff`). Read once, in a normal launch only. It carries no
+    /// entitlement: Orbit is free.
+    private var dropHandoff = DropHandoff.Result(dropWasUsed: false)
     #endif
 
     /// The anchor exists only while the popover is open; the next open
     /// parks it at wherever the status item is then.
     func popoverDidClose(_ notification: Notification) {
         anchorHost.hide()
+    }
+
+    /// True while this app runs as the host of a unit test bundle. The Mac App
+    /// Store tests are hosted by the app itself, so without this a hosted
+    /// test would read the real Drop marker, adopt it, switch the file shelf
+    /// on for good and touch the live preferences.
+    ///
+    /// Same detection the old store setup used.
+    private static var isTestHost: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
@@ -122,7 +123,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let diagnose = args.contains("--diagnose")
         let gallery = args.contains("--gallery")
         let fixtureName = Self.argValue(args, after: "--fixture")
-        let isolated = diagnose || gallery || fixtureName != nil
+        // A hosted unit test is isolated as well. The check comes before any
+        // live setup, so a hosted test reads no marker, no real preferences
+        // and opens no shelf window.
+        let isolated = diagnose || gallery || fixtureName != nil || Self.isTestHost
 
         // `FixtureFactory.resolve` is the ONE place that maps a fixture NAME
         // to its (snapshot, preferences, peripherals) — previously only
@@ -158,7 +162,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                     networkBackend: networkBackend,
                                     audioBackend: audioBackend,
                                     peripheralBackend: peripheralBackend)
-        } else if gallery {
+        } else if gallery || Self.isTestHost {
             let fixture = StatusSnapshot.fixture("desktop")
             let backends = FixtureFactory.makeBackends(for: fixture)
             audioBackend = backends.audio
@@ -247,10 +251,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .store(in: &cancellables)
         modules.clothesline.suppressReveal = { [weak self] in self?.popover.isShown ?? false }
         #if MAS
-        tools.setAllowed(false)
-        startStore(args: args)
-        modules.isAllowed = { [weak self] in self?.panelAllowed ?? false }
-        modules.onLocked = { [weak self] in self?.paywall?.show() }
+        // Orbit is free: no purchase, no trial, no entitlement and no
+        // account, so nothing is gated. The only thing read from the shared
+        // group container is the legacy UTUVO Drop adoption marker.
+        dropHandoff = DropHandoff.read()
         // Someone who used UTUVO Drop gets its file shelf switched on once.
         if dropHandoff.dropWasUsed { modules.adoptDropUser() }
         #endif
@@ -352,6 +356,29 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in self?.showPopover() }
         }
         installEscapeMonitor()
+    }
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let toolsWindow else { return .terminateNow }
+        // Notes keep their own protection; snippets add a second unsaved draft.
+        let notesSaved = toolsWindow.workbench.notes.flush()
+        let snippetsSaved = toolsWindow.workbench.snippets.flush()
+        guard !notesSaved || !snippetsSaved else { return .terminateNow }
+        let c = ToolCopy(language: preferencesModel?.values.language ?? .system)
+        let snippetsFailed = !snippetsSaved
+        let alert = NSAlert()
+        alert.messageText = snippetsFailed ? c("片段尚未儲存", "Your snippet could not be saved") : c("筆記尚未儲存", "Your note could not be saved")
+        let detail = snippetsFailed ? toolsWindow.workbench.snippets.error : toolsWindow.workbench.notes.error
+        alert.informativeText = detail ?? c("請重試，或選擇不儲存就離開。", "Retry saving, or choose to quit without saving.")
+        alert.addButton(withTitle: c("繼續編輯", "Keep Editing"))
+        alert.addButton(withTitle: c("不儲存並離開", "Quit Without Saving"))
+        if alert.runModal() == .alertSecondButtonReturn {
+            if !notesSaved { toolsWindow.workbench.notes.discardDraft() }
+            if !snippetsSaved { toolsWindow.workbench.snippets.discardDraft() }
+            return .terminateNow
+        }
+        toolsWindow.show(page: snippetsFailed ? .snippets : .notes)
+        return .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -493,18 +520,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 }
             }
             menu.addItem(.separator())
-            #if MAS
-            let titles = OrbitMAS.menuTitles(languageIdentifier: l.identifier)
-            if dropHandoff.dropUnlockVerified {
-                let unlocked = NSMenuItem(title: OrbitMAS.unlockedByDropTitle(languageIdentifier: l.identifier), action: nil, keyEquivalent: "")
-                unlocked.isEnabled = false; menu.addItem(unlocked)
-            } else {
-                let purchase = NSMenuItem(title: titles.purchase, action: #selector(openPurchase), keyEquivalent: "")
-                purchase.target = self; menu.addItem(purchase)
-            }
-            let restore = NSMenuItem(title: titles.restore, action: #selector(restorePurchases), keyEquivalent: "")
-            restore.target = self; menu.addItem(restore); menu.addItem(.separator())
-            #endif
             let quit = NSMenuItem(title: l("結束 UTUVO Orbit"), action: #selector(quitApp), keyEquivalent: "q")
             quit.target = self; menu.addItem(quit)
             statusItem?.menu = menu; statusItem?.button?.performClick(nil); statusItem?.menu = nil
@@ -518,17 +533,11 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
     @objc private func openToolsMenu() { openTools() }
     @objc private func openActionsMenu() {
-        #if MAS
-        guard panelAllowed else { paywall?.show(); return }
-        #endif
         toolsWindow?.showActions()
     }
     @objc private func openScreenshotTools() { openTools(page: .screenshots) }
     private func openTools(page: OrbitToolsNavigation.Page = .modes, files: [URL]? = nil) {
         if popover.isShown { popover.performClose(nil) }
-        #if MAS
-        guard panelAllowed else { paywall?.show(); return }
-        #endif
         toolsWindow?.show(page: page, files: files)
     }
     @objc private func checkForUpdates() {
@@ -540,13 +549,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func quitApp() { NSApp.terminate(nil) }
     private func showPopover() {
         guard let button = statusItem?.button else { return }
-        #if MAS
-        // Panel content is gated; the menu-bar glyph itself is not.
-        guard panelAllowed else { paywall?.show(); return }
-        // A long-running menu bar session must notice the trial running
-        // out; the access observer swaps to the paywall if it has.
-        if let store { Task { await store.refresh() } }
-        #endif
         NSApp.activate(ignoringOtherApps: true)
         // `isPinned` (mirrored from the panel's in-memory pin state via
         // `onPinChanged`), NOT `preferencesModel.values.pin` — pin is
@@ -570,73 +572,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         popover.contentViewController?.view.window?.makeKey()
     }
-
-    #if MAS
-    private func startStore(args: [String]) {
-        // The MAS unit tests are hosted in this app and drive StoreKit
-        // through their own `SKTestSession`. A store started here first
-        // pins the whole process's StoreKit connection to the live sandbox
-        // environment, so the host stays out of StoreKit entirely.
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            || NSClassFromString("XCTestCase") != nil { return }
-        dropHandoff = DropHandoff.read()
-        let store = UTUVOStore(trialID: OrbitMAS.trialProductID, unlockID: OrbitMAS.unlockProductID)
-        self.store = store
-        paywall = OrbitPaywallWindowController(store: store)
-        #if DEBUG
-        qaFullAccess = args.contains(OrbitMAS.qaFullAccessArgument)
-        #endif
-        store.start()
-        // `receive(on:)` hops a run-loop turn, so `store.access` already
-        // holds the new value when the handler reads it.
-        store.$access.removeDuplicates().receive(on: RunLoop.main)
-            .sink { [weak self] access in self?.storeAccessChanged(access) }
-            .store(in: &cancellables)
-    }
-
-    private var panelAllowed: Bool {
-        #if DEBUG
-        if qaFullAccess { return true }
-        #endif
-        return store.map { OrbitMAS.allowsPanel($0.access, dropUnlock: dropHandoff.dropUnlockVerified) } ?? false
-    }
-
-    private func storeAccessChanged(_ access: UTUVOStore.Access) {
-        guard access != .loading else { return }
-        modules?.apply()
-        toolsWindow?.setAllowed(panelAllowed)
-        if !didResolveInitialAccess {
-            didResolveInitialAccess = true
-            if !panelAllowed { paywall?.show() }
-            return
-        }
-        if OrbitMAS.allowsPanel(access, dropUnlock: dropHandoff.dropUnlockVerified) {
-            // Trial started / unlock bought from the paywall: go straight
-            // to the panel the user was trying to open.
-            if paywall?.isVisible == true { paywall?.close(); showPopover() }
-        } else if !panelAllowed, popover.isShown {
-            popover.performClose(nil)
-            paywall?.show()
-        }
-    }
-
-    @objc private func openPurchase() { paywall?.show() }
-
-    @objc private func restorePurchases() {
-        guard let store else { return }
-        Task { @MainActor [weak self] in
-            await store.restore()
-            guard let self else { return }
-            // Drop may have been updated since launch.
-            self.dropHandoff = DropHandoff.read()
-            self.modules?.apply()
-            if !self.panelAllowed { self.paywall?.show(); return }
-            // The access observer may already have swapped to the panel.
-            self.paywall?.close()
-            if !self.popover.isShown { self.showPopover() }
-        }
-    }
-    #endif
 
     private func handleScreenChange() {
         let buttonRect: NSRect? = statusItem?.button.flatMap { Self.screenRect(of: $0) }

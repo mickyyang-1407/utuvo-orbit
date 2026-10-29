@@ -20,7 +20,8 @@ iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
 
 - `Sources/OrbitCore`: values, pure state resolution, interfaces and fake backends.
 - `Sources/UtuvoOrbit`: native menu-bar host, one-panel SwiftUI views and live macOS adapters.
-- `Tests`: value/fake tests; no real audio, network, power or saved preferences.
+- `Tests`: isolated fixtures and injected fakes. Some module/UI suites create windows; do not run those while the computer is in use.
+- `MAS`: the free sandboxed Mac App Store target, its assets, entitlements and tests. No StoreKit products, trial or purchase gate.
 - `scripts`: app assembly, original artwork and release packaging.
 
 The direct-download executable pins Sparkle 2.10.1 for signed updates. Keep `Package.resolved` checked in and embed its framework when assembling the app. The separate Xcode `MAS` target does not link or embed Sparkle. See [software updates](UPDATING.md).
@@ -34,7 +35,13 @@ swift test --filter InlineSettingsTests
 swift test --filter PreferencesTests
 ```
 
-The complete value/fixture suite is available with `swift test`, but it is not necessary for an isolated copy/layout edit. UI changes need a brief native check of the affected flow.
+Use `swift test` only when native AppKit/module tests are safe to run: some suites start windows. For the 0.11 model/core changes without foreground interaction, run:
+
+```sh
+swift test --filter 'QuickLinksTests|SnippetTests|FileIntegrityTests|FreeDistributionTests|ProductivityCoreTests|ProductivityStateTests|previewFileCopyUsesTheInjectedClipboard'
+```
+
+GUI and screenshot acceptance for this candidate are deferred to the nightly session at the user’s request. Compilation or pure-model tests do not establish native UI acceptance.
 
 ## Demo data
 
@@ -106,3 +113,16 @@ The bilingual static showcase is hosted at https://mickyyang-1407.github.io/utuv
 ### Web images
 
 Keep the original PNG artwork and screenshots. Generate WebP files for the showcase with `python3 scripts/optimize-web-images.py` (requires `cwebp` from libwebp, available with `brew install webp`). The hero has 640/960/1280/1672-pixel variants selected with `srcset`; it loads eagerly at high priority. Screenshots retain their full resolution and load lazily. The light/dark switch uses the same compressed files.
+
+## Free Mac App Store target
+
+Both distributions offer every feature for free. No purchase, trial clock, transaction lookup or account is needed. Optional modules still start only after the user enables them; existing module preferences remain. A bounded legacy Drop marker can adopt its shelf preference once, independently of any old receipt.
+
+Generate and build the sandboxed target with XcodeGen and Xcode:
+
+```sh
+xcodegen generate --spec project.yml
+xcodebuild -project UTUVOOrbitMAS.xcodeproj -scheme UTUVOOrbitMAS -configuration Release -derivedDataPath build/mas CODE_SIGNING_ALLOWED=NO build
+```
+
+An unsigned local build does not establish App Store signing, sandbox runtime acceptance or store availability. Use your own signing team and App Group configuration for distribution; the public project contains no private signing material. The production updater applies only to the direct edition.

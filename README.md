@@ -8,6 +8,8 @@
 
 **macOS 14+ · Apple Silicon download · Native SwiftUI + AppKit · MIT**
 
+**Free and open source.** Starting with the 0.11 source candidate, every feature is available without purchase, trial activation or an account in both distribution targets. The MIT source includes the workbench, optional modules and Mac App Store build configuration. The candidate adds calculator/conversion, world clock, notes, Quicklinks, Snippets and file integrity; GUI acceptance for the newest pages is pending. Stable downloads remain separately versioned.
+
 ## A quieter menu bar. A useful click.
 
 Orbit combines three everyday signals into one small icon. On a MacBook, its outer arc shows battery level. On a desktop Mac, it can show CPU activity. Network state sits in the middle; audio level lives in the dots below.

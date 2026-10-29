@@ -3,10 +3,10 @@ import AppKit
 // MARK: - UTUVO Orbit module facade
 //
 // The cat-tail file shelf that used to ship as the standalone app UTUVO Drop.
-// Orbit owns the single menu bar icon, the language setting and the
-// trial/unlock gate; this type only creates the floating shelf while the
-// module is switched on and tears it down completely when it is switched
-// off (no window, no observers, no file references left behind).
+// Orbit owns the single menu bar icon and the language setting; this type only
+// creates the floating shelf while the module is switched on and tears it down
+// completely when it is switched off (no window, no observers, no file
+// references left behind).
 
 @MainActor public final class ShelfModule {
     private let defaults: UserDefaults?
@@ -15,7 +15,8 @@ import AppKit
 
     /// Returns false while Orbit is locked; the shelf then refuses new files.
     public var dropGate: (() -> Bool)?
-    /// Called when a drag is refused by `dropGate` (Orbit opens its paywall).
+    /// Called when a drag is refused by `dropGate`. Orbit sets no gate, so
+    /// every drop is accepted.
     public var onGatedDrop: (() -> Void)?
     /// Right-click menu on the cat; Orbit supplies its own module menu.
     public var contextMenu: (() -> NSMenu?)?

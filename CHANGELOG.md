@@ -1,5 +1,22 @@
 # Changelog
 
+## 0.11.0 (16) — local candidate, GUI acceptance pending
+
+- Makes both distribution targets fully free: removes StoreKit trial/purchase/paywall gates and purchase/restore menus. Existing MIT licensing continues; the source export includes the Mac App Store target.
+- Adds saved Web Quicklinks with fixed HTTP(S) destinations and optional `{query}` searches; terms are encoded once and links open only on request.
+- Adds private plain-text Snippets with date/time and named fields, one-pass expansion, autosave/draft protection, and explicit Copy / Text / Notes handoffs.
+- Adds streaming SHA-256 / SHA-512 / compatibility MD5 checksums for explicitly selected files, expected-checksum checks and two-file hash comparison.
+- Integrates all three pages and saved items into action search. No new dependency, background scan, automatic typing or global shortcut.
+- Daytime verification remains isolated tests and builds. Actual GUI and native capture acceptance are deferred to the existing nightly schedule; this candidate is not published and does not change the production feed.
+
+## 0.10.0 (15) — local candidate, GUI acceptance pending
+
+- Adds calculator/history and dimensional unit conversion with bounded parsing and explicit errors.
+- Adds offline world-clock favorites, date preview, DST-aware offsets and date rollover.
+- Adds private quick notes with autosave, search, pins, recoverable trash, Markdown export and unsaved-draft protection.
+- Integrates all three tools into the workbench/action search; makes the sidebar scroll.
+- Daytime checks are isolated tests and builds only. GUI and native screenshot acceptance run at night at the user’s request. No public release or feed update for this build.
+
 ## 0.9.1 (14) — engineering prerelease
 
 - Configures the production Sparkle public key and HTTPS feed; signs and verifies update archives and appcasts with the private key kept in Keychain.
