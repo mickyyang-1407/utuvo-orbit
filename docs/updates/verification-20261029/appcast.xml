@@ -1,0 +1,20 @@
+<?xml version="1.0" encoding="utf-8" standalone="yes"?><!-- sparkle-sign-warning:
+IMPORTANT: This file was signed by Sparkle. Any modifications to this file requires re-signing this file with generate_appcast or sign_update! The signed signature will be embedded at the end of this file.
+--><rss xmlns:sparkle="http://www.andymatuschak.org/xml-namespaces/sparkle" version="2.0">
+  <channel>
+    <title>UTUVO Orbit isolated updater verification</title>
+    <item>
+      <title>Orbit updater verification 0.9.1 (14)</title>
+      <sparkle:version>14</sparkle:version>
+      <sparkle:shortVersionString>0.9.1</sparkle:shortVersionString>
+      <sparkle:minimumSystemVersion>14.0</sparkle:minimumSystemVersion>
+      <sparkle:hardwareRequirements>arm64</sparkle:hardwareRequirements>
+      <pubDate>Thu, 29 Oct 2026 01:16:57 +0000</pubDate>
+      <description>Test-only isolated Orbit updater edition. This is not the normal Orbit app. Intentionally damaged payload: signature rejection must leave build 13 installed.</description>
+      <enclosure url="https://github.com/mickyyang-1407/utuvo-orbit/releases/download/update-verification-20261029/UTUVO-Orbit-Verification-0.9.1-14-corrupt.zip" length="5319432" type="application/octet-stream" sparkle:edSignature="8KUrMPGaoaMz3vv6mj+cG7NQDyZGuhuRjwC3LCnHreVFhNKdZeYirrhyHf8rshtZIZr87Pg/O7usHQkzn5dHDQ=="></enclosure>
+    </item>
+  </channel>
+</rss><!-- sparkle-signatures:
+edSignature: mOcHsQpPgTNnLP/uy5Oy0KH/Loyw0LWx6wIK2pnzmyajIfanOzDLEc6oElgMdd81LppKjmuGix6SYFjMouJRCw==
+length: 1394
+-->
