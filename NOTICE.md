@@ -2,7 +2,7 @@
 
 UTUVO Orbit source and original app artwork are released under the MIT license in LICENSE. The UTUVO name and product marks identify the project; no trademark rights are granted.
 
-No third-party runtime code, fonts or artwork is bundled. The app uses Apple frameworks and requests system symbols at runtime. Apple and macOS names remain their respective owners' marks; the project is not affiliated with Apple.
+The direct-download edition bundles Sparkle 2.10.1 for signed software updates. Its full license and third-party notices are in `Resources/Sparkle-LICENSE`, also copied into the app's Resources folder. The Mac App Store edition uses Apple's store updates and does not bundle Sparkle. No third-party fonts or artwork are bundled. The app uses Apple frameworks and requests system symbols at runtime. Apple and macOS names remain their respective owners' marks; the project is not affiliated with Apple.
 
 The combined battery/network/audio concept was researched through Status Trio (https://github.com/lingyired/status-trio) and DuoBar (https://github.com/Mikeli7666/DuoBar). Their source/artwork is not vendored in this release. Those projects keep their own licenses.
 

@@ -55,10 +55,11 @@ public final class AwakeController: AwakeBackend, @unchecked Sendable {
     public func current() -> AwakeState { state.read { $0 } }
 
     public func start(duration: AwakeDuration, now: Date) throws -> AwakeState {
+        guard duration.seconds > 0, duration.seconds <= 7200 else { throw AwakeError.createFailed(status: -50) }
         lock.lock(); defer { lock.unlock() }
         cancelScheduledExpiryLocked()
         releaseCurrentAssertionLocked()
-        let timeoutSeconds = max(1, UInt32(duration.minutes * 60))
+        let timeoutSeconds = duration.seconds
         let result = driver.createAssertion(name: "UTUVO Orbit keep awake",
                                             type: "PreventUserIdleSystemSleep",
                                             level: 255,

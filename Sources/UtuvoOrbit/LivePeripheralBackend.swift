@@ -31,7 +31,11 @@ public final class LivePeripheralBackend: PeripheralBackend, @unchecked Sendable
     private let chargingExecutor: AccessoryChargingExecutor
 
     public convenience init() {
+        #if MAS
+        self.init(chargingExecutor: IOPSAccessoryChargingExecutor())
+        #else
         self.init(chargingExecutor: PMSetAccessoryChargingExecutor())
+        #endif
     }
 
     /// Test-only injection point — a fake executor never launches a real

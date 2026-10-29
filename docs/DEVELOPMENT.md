@@ -23,7 +23,7 @@ iconutil -c icns Resources/AppIcon.iconset -o Resources/AppIcon.icns
 - `Tests`: value/fake tests; no real audio, network, power or saved preferences.
 - `scripts`: app assembly, original artwork and release packaging.
 
-There are no third-party Swift package dependencies.
+The direct-download executable pins Sparkle 2.10.1 for signed updates. Keep `Package.resolved` checked in and embed its framework when assembling the app. The separate Xcode `MAS` target does not link or embed Sparkle. See [software updates](UPDATING.md).
 
 ## Focused checks
 
@@ -47,9 +47,23 @@ The complete value/fixture suite is available with `swift test`, but it is not n
 
 Fixtures use fake preferences and fake hardware. Quit another instance with the same bundle identifier first. `--diagnose` without a fixture is a **live read-only** diagnostic, not a unit test. Treat diagnostic output as local information until redacted.
 
+Quick Tools has a separate early fixture entry point, before live preferences or hardware setup:
+
+```sh
+.build/debug/UtuvoOrbit --tools-preview --tools-tab audio --language zh-Hant
+.build/debug/UtuvoOrbit --tools-preview --tools-tab timer --pomodoro --language en
+.build/debug/UtuvoOrbit --tools-preview --tools-tab files --light --snapshot /tmp/orbit-files.png
+.build/debug/UtuvoOrbit --tools-preview --tools-tab screenshots --language zh-Hant
+swift test --filter 'ToolsCoreTests|ToolsModelsTests|QuickFileProcessorTests'
+```
+
+Previews use fake audio/awake/clipboard/app launches/hotkeys, in-memory tools and disabled notifications/file actions. New pages are `modes`, `actions`, `reminders`, `clipboard`, `text`, `pdf`, `colors` and `qr`; existing pages remain available. `--timer-seconds 2` starts a short fixture timer. Only Debug builds accept `--tools-qa-file-actions`, which enables file pickers for sandbox tests with generated temporary files; audio and awake stay fake. Never point this QA mode at personal files. The timer has its own awake backend; audio catalogs refresh on explicit entry/action rather than a second polling loop.
+
+Screenshot previews generate a local demo image and use a fake capture provider with a temporary library. Debug-only `--tools-qa-capture` selects the real ScreenCaptureKit picker while other hardware stays fake; use a distinct QA bundle ID and a fixture-only target window. Native capture remains unaccepted on the current test Mac after two picker-presentation repairs. Do not treat editor tests or fake capture as end-to-end native capture evidence. The single-image API has no recording stream; picker observers and activation policy are scoped to one request, including cancellation. Import/edit/OCR/export has independent tests and sandbox GUI evidence.
+
 ## Localization
 
-`Sources/OrbitCore/Resources/{en,zh-Hant}.lproj/Localizable.strings` contains interface strings. `OrbitStrings` is immutable and passed through the SwiftUI environment; it never changes the global locale or system preferences. AppKit menus and the status-item tooltip use the same selected language. `build-app.sh` includes the SwiftPM resource bundle.
+`Sources/OrbitCore/Resources/{en,zh-Hant}.lproj/Localizable.strings` contains the established interface strings; new workbench surfaces use the explicitly scoped bilingual `ToolCopy` value. `OrbitStrings` is immutable and passed through the SwiftUI environment; it never changes the global locale or system preferences. AppKit menus and the status-item tooltip use the same selected language. `build-app.sh` includes the SwiftPM resource bundle.
 
 Preview a language without touching saved preferences:
 

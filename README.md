@@ -29,7 +29,9 @@ Click once to change volume, choose an output device, keep your Mac awake, check
 - **Stay awake on purpose.** 30, 60 or 120 minutes. Start, stop, and see the remaining time.
 - **Details when you need them.** CPU and memory, local IPv4, interface upload/download activity and peripheral battery readings.
 - **Native materials.** Liquid Glass controls on macOS 26+, a material fallback on older macOS, and explicit Light, Dark or System appearance.
-- **Local by design.** No account, analytics, ads, cloud service or third-party runtime packages. Unknown readings remain unknown.
+- **Local by design.** No account, analytics or ads. Personal data stays on your Mac. Unknown readings remain unknown.
+
+The working tree also contains a **0.9.1 engineering prerelease** with a sidebar workbench, context modes, a searchable action panel, opt-in reminders and clipboard history, text/PDF/color/QR tools, plus audio scenes, countdown/Pomodoro, file tools and screenshot import/markup/OCR/export. The native screenshot picker is not accepted on the test Mac; macOS screenshot shortcuts followed by import are the validated path. It includes the refreshed settings, opt-in launch at login, and Sparkle integration from 0.6. The production key is configured, and the real updater passed HTTPS background-download, signature-rejection and install/relaunch acceptance in an isolated Orbit bundle. The stable download linked below remains 0.4.2; the [0.9.1 candidate](https://github.com/mickyyang-1407/utuvo-orbit/releases/tag/v0.9.1-rc.1) retains the native-capture limitation. See [quick tools](docs/TOOLS.md), [screenshots](docs/TOOLS-SCREENSHOTS.md) and [software updates](docs/UPDATING.md).
 
 ## Read the glyph
 

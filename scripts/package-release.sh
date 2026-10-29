@@ -8,9 +8,10 @@ if [[ "$(uname -m)" != arm64 ]]; then
   echo 'The published download targets Apple Silicon; package on arm64.' >&2
   exit 1
 fi
-if [[ "${SKIP_BUILD:-0}" != 1 ]]; then bash scripts/build-app.sh; fi
+if [[ "${SKIP_BUILD:-0}" != 1 ]]; then REQUIRE_UPDATER=1 bash scripts/build-app.sh; fi
 APP="${APP_PATH:-$PWD/dist/UTUVO Orbit.app}"
 VERSION=$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$APP/Contents/Info.plist")
+python3 scripts/prepare-update.py validate-app "$APP"
 OUTPUT="$PWD/release/$VERSION"
 mkdir -p "$OUTPUT"
 WORK=$(mktemp -d "${TMPDIR:-/tmp}/orbit-package.XXXXXX")
@@ -28,7 +29,7 @@ if [[ -z "$PYTHON" ]]; then
   "$WORK/venv/bin/pip" -q install 'ds-store==1.3.3' 'mac-alias==2.2.3'
   PYTHON="$WORK/venv/bin/python"
 fi
-codesign --verify --strict "$APP"
+codesign --verify --deep --strict "$APP"
 lipo -verify_arch arm64 "$APP/Contents/MacOS/UtuvoOrbit"
 STEM="UTUVO-Orbit-$VERSION-arm64"
 ditto -c -k --sequesterRsrc --keepParent "$APP" "$OUTPUT/$STEM.zip"
@@ -37,7 +38,7 @@ mkdir -p "$WORK/content/.background"
 ditto "$APP" "$WORK/content/UTUVO Orbit.app"
 ln -s /Applications "$WORK/content/Applications"
 cp docs/assets/dmg-background.png "$WORK/content/.background/background.png"
-hdiutil create -quiet -size 64m -fs HFS+ -volname 'UTUVO Orbit' -format UDRW \
+hdiutil create -quiet -size 160m -fs HFS+ -volname 'UTUVO Orbit' -format UDRW \
   -srcfolder "$WORK/content" "$WORK/writable.dmg"
 mkdir -p "$MOUNT"
 hdiutil attach -quiet -nobrowse -mountpoint "$MOUNT" "$WORK/writable.dmg"

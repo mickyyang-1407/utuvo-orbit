@@ -39,6 +39,14 @@ Choose 30, 60 or 120 minutes and press 啟動 / Start. Stop ends it immediately;
 
 The System detail shows batteries macOS exposes through HID properties. Names and percentages come from the device. A charging bolt requires an explicit charging value matched to the device's identity. Missing, conflicting or wrong-typed data stays unknown. It is not inferred from a USB cable.
 
+## Quick Tools (0.7 candidate)
+
+Choose **Tools** in the panel, **Quick Tools** from the menu-bar item's right-click menu, or **Quick File Tools** from the file shelf. The window includes saved audio scenes, countdown/Pomodoro and file exports. See the [Quick Tools guide](TOOLS.md) for steps and limits.
+
+## Startup and updates (0.6 and later candidates)
+
+Open Settings from the panel or the menu-bar item's right-click menu. General → Open at Login is opt-in and shows the current macOS approval status. Updates offers daily checks, optional automatic installation, and a manual check. The App Store edition opens its store page instead. The 0.9.1 engineering candidate includes the production update configuration. Its updater passed isolated HTTPS download/install/relaunch acceptance; native screenshot acceptance remains incomplete. See [software updates](UPDATING.md).
+
 ## Limits
 
 - Interface traffic is **not** a speed test or proof of internet reachability. Orbit does not probe external websites or read your Wi-Fi SSID.
@@ -46,7 +54,7 @@ The System detail shows batteries macOS exposes through HID properties. Names an
 - Keep-awake does not override a closed MacBook lid, explicit sleep, or all OS power decisions.
 - Peripheral IORegistry properties are best-effort and can change with macOS/device firmware. No promise of support for every AirPods, iPhone or Bluetooth accessory.
 - Unknown hardware remains unknown. Connected AC power or an external display does not turn a laptop into a desktop.
-- Orbit does not hide the original system icons, start at login, or update itself automatically.
+- Orbit does not hide the original system icons. Launch at login and automatic installation require the user's choice.
 
 ## Troubleshooting
 

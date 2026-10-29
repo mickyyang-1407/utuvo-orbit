@@ -1,4 +1,7 @@
 import Foundation
+#if MAS
+import IOKit.ps
+#endif
 import OrbitCore
 
 // MARK: - AccessoryChargingSource
@@ -139,8 +142,10 @@ protocol AccessoryChargingExecutor: Sendable {
     func run(timeout: TimeInterval) -> Data?
 }
 
+#if !MAS
 /// Fixed binary path, fixed arguments (no shell) — a public, documented
-/// system CLI, not a private framework call.
+/// system CLI, not a private framework call. Not compiled into the Mac App
+/// Store edition: see `IOPSAccessoryChargingExecutor` below.
 struct PMSetAccessoryChargingExecutor: AccessoryChargingExecutor {
     static let maxBytes = 256 * 1024
 
@@ -230,3 +235,39 @@ struct PMSetAccessoryChargingExecutor: AccessoryChargingExecutor {
         return collected.read { $0 }
     }
 }
+#endif
+
+#if MAS
+/// Mac App Store edition: no subprocess at all. Reads the public
+/// `IOPSCopyPowerSourcesInfo`/`IOPSCopyPowerSourcesList` snapshot in-process
+/// and re-serializes every description as its own XML plist document, so
+/// the SAME strict `AccessoryChargingParser` (genuine `Type == "Accessory
+/// Source"`, CFBoolean-only `Is Charging`) and exact-identifier matcher
+/// decide — no second, drifting copy of those rules.
+///
+/// Measured on a Mac Studio with two USB accessories (2026-10-01): the
+/// public list held 0 sources while `pmset -g accps` listed 7 accessories —
+/// the public call only reports internal batteries and UPSes. So in this
+/// edition accessory charging normally resolves to `.unknown` (battery
+/// percentage still comes from the IORegistry read in
+/// `LivePeripheralBackend`). The private by-type IOPS calls that do see
+/// accessories are deliberately not used.
+struct IOPSAccessoryChargingExecutor: AccessoryChargingExecutor {
+    func run(timeout: TimeInterval) -> Data? {
+        guard let info = IOPSCopyPowerSourcesInfo()?.takeRetainedValue(),
+              let sources = IOPSCopyPowerSourcesList(info)?.takeRetainedValue() as? [CFTypeRef] else {
+            return nil
+        }
+        var output = Data()
+        for source in sources {
+            // Owned by `info` — unretained, same rule as LiveSystemBackend.
+            guard let description = IOPSGetPowerSourceDescription(info, source)?.takeUnretainedValue(),
+                  let document = try? PropertyListSerialization.data(fromPropertyList: description, format: .xml, options: 0) else {
+                continue
+            }
+            output.append(document)
+        }
+        return output
+    }
+}
+#endif

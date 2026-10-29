@@ -143,7 +143,7 @@ public final class FakeAwakeBackend: AwakeBackend, @unchecked Sendable {
         let scheduler = ManualAwakeScheduler()
         controller = AwakeController(driver: driver, scheduler: scheduler)
         if initial.isActive, let deadline = initial.deadline {
-            let elapsedBack = TimeInterval(initial.chosenDuration.minutes * 60)
+            let elapsedBack = TimeInterval(initial.chosenDuration.seconds)
             _ = try? controller.start(duration: initial.chosenDuration, now: deadline.addingTimeInterval(-elapsedBack))
         }
     }

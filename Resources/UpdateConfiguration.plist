@@ -1,0 +1,10 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+	<key>FeedURL</key>
+	<string>https://mickyyang-1407.github.io/utuvo-orbit/updates/appcast.xml</string>
+	<key>PublicEDKey</key>
+	<string>PaLXyfQh5gvSKzoJrbAHPJSYcexi0RG8drbA6u4t5WU=</string>
+</dict>
+</plist>

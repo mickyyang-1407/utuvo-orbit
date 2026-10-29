@@ -23,12 +23,16 @@ struct OverviewTab: View {
             let reasons = AttentionAnalysis.reasons(snapshot: monitor.snapshot)
             if !reasons.isEmpty { AttentionRow(reasons: reasons) }
             AudioControlView(model: model)
-            ThinDivider()
+                .padding(10)
+                .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
             AwakeControlView(model: model)
-            ThinDivider()
-            SystemSummaryRow(model: model)
-            ThinDivider()
-            NetworkSummaryRow(model: model)
+                .padding(10)
+                .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
+            VStack(spacing: 10) {
+                SystemSummaryRow(model: model)
+                ThinDivider()
+                NetworkSummaryRow(model: model)
+            }.padding(.horizontal, 4).padding(.top, 2)
         }
     }
 }

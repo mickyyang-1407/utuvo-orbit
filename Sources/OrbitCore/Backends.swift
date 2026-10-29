@@ -187,11 +187,22 @@ public enum AwakeDuration: Hashable, Sendable, Codable, CaseIterable {
     case thirty
     case sixty
     case oneTwenty
+    case custom(seconds: UInt32)
+    public static var allCases: [AwakeDuration] { [.thirty, .sixty, .oneTwenty] }
+    public var seconds: UInt32 {
+        switch self {
+        case .thirty: 1800
+        case .sixty: 3600
+        case .oneTwenty: 7200
+        case .custom(let seconds): seconds
+        }
+    }
     public var minutes: Int {
         switch self {
         case .thirty: return 30
         case .sixty: return 60
         case .oneTwenty: return 120
+        case .custom(let seconds): return (Int(seconds) + 59) / 60
         }
     }
     public static var defaultChoice: AwakeDuration { .sixty }
@@ -200,6 +211,7 @@ public enum AwakeDuration: Hashable, Sendable, Codable, CaseIterable {
         case .thirty: return "30 分鐘"
         case .sixty: return "60 分鐘"
         case .oneTwenty: return "120 分鐘"
+        case .custom: return "計時器"
         }
     }
 }

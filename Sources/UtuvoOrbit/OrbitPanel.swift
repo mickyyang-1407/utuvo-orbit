@@ -41,6 +41,9 @@ final class OrbitPanelModel: ObservableObject {
     /// flip the popover's behavior immediately while the panel is visible.
     /// (Without this, the new behavior wouldn't apply until the next open.)
     var onPinChanged: ((Bool) -> Void)?
+    /// Opens Orbit's Settings window (modules, launch at login).
+    var onOpenSettings: (() -> Void)?
+    var onOpenTools: (() -> Void)?
 
     let audioBackend: AudioBackend
     let networkBackend: NetworkBackend
@@ -243,7 +246,9 @@ struct OrbitPanel: View {
          systemBackend: SystemBackend, awakeBackend: AwakeBackend,
          preview: Bool,
          initialTab: OrbitPanelModel.Tab = .overview,
-         onPinChanged: ((Bool) -> Void)? = nil) {
+         onPinChanged: ((Bool) -> Void)? = nil,
+         onOpenSettings: (() -> Void)? = nil,
+         onOpenTools: (() -> Void)? = nil) {
         self.monitor = monitor
         self.preferences = preferences
         self.audioBackend = audioBackend
@@ -259,16 +264,17 @@ struct OrbitPanel: View {
                                           preview: preview,
                                           initialTab: initialTab)
         initialModel.onPinChanged = onPinChanged
+        initialModel.onOpenSettings = onOpenSettings
+        initialModel.onOpenTools = onOpenTools
         _model = StateObject(wrappedValue: initialModel)
     }
 
     var body: some View {
         VStack(spacing: 0) {
                 HeaderBar()
-                    .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
+                    .padding(.horizontal, 18).padding(.top, 16).padding(.bottom, 14)
                 TabBar(selection: $model.tab)
-                    .padding(.horizontal, 14)
-                Divider().opacity(0.25).padding(.top, 4)
+                    .padding(.horizontal, 18)
                 ZStack {
                     switch model.tab {
                     case .overview: OverviewTab(model: model, monitor: monitor, preferences: preferences)
@@ -277,17 +283,19 @@ struct OrbitPanel: View {
                     }
                 }
                 .frame(maxWidth: .infinity, alignment: .top)
-                .frame(height: monitor.snapshot.machine == .laptop ? 258 : 228, alignment: .top)
-                .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
-                Divider().opacity(0.25).padding(.horizontal, 14)
+                .frame(height: monitor.snapshot.machine == .laptop ? 314 : 284, alignment: .top)
+                .padding(.horizontal, 18).padding(.top, 14).padding(.bottom, 12)
                 DisplayPreferencesView(model: model, preferences: preferences, monitor: monitor)
-                    .padding(.horizontal, 14).padding(.top, 10).padding(.bottom, 6)
+                    .padding(12)
+                    .background(.primary.opacity(0.035), in: RoundedRectangle(cornerRadius: 14))
+                    .padding(.horizontal, 18).padding(.bottom, 4)
                 FooterBar(model: model, preferences: preferences, preview: preview)
-                    .padding(.horizontal, 12).padding(.vertical, 6)
+                    .padding(.horizontal, 18).padding(.vertical, 10)
         }
         .environment(\.orbitStrings, OrbitStrings(language: preferences.values.language))
         .environment(\.locale, Locale(identifier: OrbitStrings(language: preferences.values.language).identifier))
-        .frame(width: 372)
+        .frame(width: 400)
+        .tint(OrbitPalette.accent)
         .fixedSize(horizontal: false, vertical: true)
         // Single outer surface: NSPopover already draws its own native
         // vibrant chrome behind the content view, so a second full-panel
@@ -307,15 +315,23 @@ struct OrbitPanel: View {
 private struct HeaderBar: View {
     @Environment(\.orbitStrings) private var l
     var body: some View {
-        HStack(spacing: 8) {
-            Text("UTUVO Orbit")
-                .font(.system(size: 13, weight: .semibold))
+        HStack(spacing: 10) {
+            OrbitBrandMark(size: 30)
+            VStack(alignment: .leading, spacing: 3) {
+                Text("UTUVO Orbit")
+                    .font(.system(size: 15, weight: .semibold, design: .rounded))
+                Text(l("你的 Mac，一眼掌握。"))
+                    .font(.system(size: 10)).foregroundStyle(.secondary)
+            }
             Spacer()
-            Text("0.4.1")
+            // Read from the bundle so the header can never lag the
+            // packaged version again (0.4.2 shipped still saying "0.4.1").
+            // The literal is only the bare-binary CLI fallback (no Info.plist).
+            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.9.1")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
         }
-        .frame(height: 24)
+        .frame(height: 34)
     }
 }
 
@@ -350,6 +366,8 @@ private struct FooterBar: View {
                     .frame(width: 28, height: 22)
             }
             .buttonStyle(.plain)
+            .foregroundStyle(model.pin ? OrbitPalette.accent : Color.secondary)
+            .help(model.pin ? l("取消釘選面板") : l("釘選面板"))
             .accessibilityLabel(model.pin ? l("取消釘選面板") : l("釘選面板"))
             Spacer()
             HStack(spacing: 6) {
@@ -380,6 +398,21 @@ private struct FooterBar: View {
                 .accessibilityLabel(l("語言，目前選擇 %@", l(preferences.values.language.displayName)))
             }
             Spacer()
+            if !preview, model.onOpenSettings != nil {
+                Button { model.onOpenTools?() } label: {
+                    Label(l("工具"), systemImage: "square.grid.2x2").font(.system(size: 11, weight: .medium))
+                }.buttonStyle(.plain).accessibilityLabel(l("隨手工具"))
+                Button {
+                    model.onOpenSettings?()
+                } label: {
+                    Label(l("設定"), systemImage: "gearshape")
+                        .font(.system(size: 11, weight: .medium))
+                        .frame(height: 24)
+                }
+                .buttonStyle(.plain)
+                .help(l("設定與模組（檔案架、晾衣繩）"))
+                .accessibilityLabel(l("設定與模組（檔案架、晾衣繩）"))
+            }
             Button(role: .destructive) {
                 NSApp.terminate(nil)
             } label: {

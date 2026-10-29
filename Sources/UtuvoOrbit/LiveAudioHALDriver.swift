@@ -44,15 +44,15 @@ public final class LiveAudioHALDriver: AudioHALDriver, @unchecked Sendable {
     }
 
     public func deviceName(for id: UInt32) -> String {
-        var name: CFString = "音訊輸出" as CFString
-        var nameSize = UInt32(MemoryLayout<CFString>.size)
+        var name: Unmanaged<CFString>?
+        var nameSize = UInt32(MemoryLayout<Unmanaged<CFString>?>.size)
         var nameAddress = AudioObjectPropertyAddress(
             mSelector: kAudioObjectPropertyName,
             mScope: kAudioObjectPropertyScopeGlobal,
             mElement: kAudioObjectPropertyElementMain
         )
-        _ = AudioObjectGetPropertyData(AudioObjectID(id), &nameAddress, 0, nil, &nameSize, &name)
-        return name as String
+        guard AudioObjectGetPropertyData(AudioObjectID(id), &nameAddress, 0, nil, &nameSize, &name) == noErr, let name else { return "音訊輸出" }
+        return name.takeRetainedValue() as String
     }
 
     private static let vmvcAddress = AudioObjectPropertyAddress(

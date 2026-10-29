@@ -7,16 +7,18 @@ root = Path(__file__).resolve().parent.parent
 target = Path(sys.argv[1]).resolve()
 target.mkdir(parents=True, exist_ok=True)
 files = [
-    'Package.swift', 'LICENSE', 'README.md', 'README.zh-Hant.md',
+    'Package.swift', 'Package.resolved', 'LICENSE', 'README.md', 'README.zh-Hant.md',
     'CONTRIBUTING.md', 'SECURITY.md', 'NOTICE.md', 'CHANGELOG.md', '.gitignore',
-    'Resources/AppIcon.icns', 'Resources/app-icon.png',
+    'Resources/AppIcon.icns', 'Resources/app-icon.png', 'Resources/UpdateConfiguration.plist', 'Resources/Sparkle-LICENSE',
     'scripts/build-app.sh', 'scripts/render-brand.swift', 'scripts/render-release-art.swift',
-    'scripts/package-release.sh', 'scripts/dmg-layout.py', 'scripts/export-source.py',
+    'scripts/package-release.sh', 'scripts/dmg-layout.py', 'scripts/export-source.py', 'scripts/sign-app.sh',
     'scripts/optimize-web-images.py',
-    'docs/INSTALL.md', 'docs/USER-GUIDE.md', 'docs/USER-GUIDE.zh-Hant.md',
+    'scripts/prepare-update.py', 'docs/UPDATING.md',
+    'docs/INSTALL.md', 'docs/USER-GUIDE.md', 'docs/USER-GUIDE.zh-Hant.md', 'docs/TOOLS.md', 'docs/TOOLS-SCREENSHOTS.md',
     'docs/DEVELOPMENT.md', 'docs/LAUNCH-COPY.md',
 ]
-directories = ['Sources/OrbitCore', 'Sources/UtuvoOrbit', 'Tests', '.github',
+directories = ['Sources/OrbitCore', 'Sources/UtuvoOrbit', 'Sources/ShelfKit', 'Sources/ClotheslineKit',
+               'Tests', '.github',
                'docs/assets', 'docs/releases', 'docs/showcase']
 for item in files:
     dest = target / item
