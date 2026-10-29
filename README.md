@@ -10,6 +10,8 @@
 
 **Free and open source.** Starting with the 0.11 source candidate, every feature is available without purchase, trial activation or an account in both distribution targets. The MIT source includes the workbench, optional modules and Mac App Store build configuration. The candidate adds calculator/conversion, world clock, notes, Quicklinks, Snippets and file integrity; GUI acceptance for the newest pages is pending. Stable downloads remain separately versioned.
 
+The **0.12 source candidate** adds portable JSON backups and previewed merge imports for Notes, Snippets and Quicklinks, with conflict/draft protection and no cloud service. See [library backups](docs/LIBRARY-BACKUPS.md). Native GUI acceptance remains pending.
+
 ## A quieter menu bar. A useful click.
 
 Orbit combines three everyday signals into one small icon. On a MacBook, its outer arc shows battery level. On a desktop Mac, it can show CPU activity. Network state sits in the middle; audio level lives in the dots below.

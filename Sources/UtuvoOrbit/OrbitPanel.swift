@@ -327,7 +327,7 @@ private struct HeaderBar: View {
             // Read from the bundle so the header can never lag the
             // packaged version again (0.4.2 shipped still saying "0.4.1").
             // The literal is only the bare-binary CLI fallback (no Info.plist).
-            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.11.0")
+            Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString") as? String ?? "0.12.0")
                 .font(.system(size: 10, design: .monospaced))
                 .foregroundStyle(.secondary)
         }

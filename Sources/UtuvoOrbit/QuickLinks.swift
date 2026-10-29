@@ -298,14 +298,7 @@ final class QuickLinksModel: ObservableObject {
         store = ToolStorage(nil, "quicklinks", fileURL: url)
         self.opener = opener ?? (preview ? PreviewQuickLinkOpener() : SystemQuickLinkOpener())
         links = store.load(fallback: [], validate: { values in
-            values.count <= QuickLinkTemplate.maxLinks &&
-            Set(values.map(\.id)).count == values.count &&
-            values.allSatisfy { value in
-                !value.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty &&
-                value.title.count <= QuickLinkTemplate.maxTitleLength &&
-                value.template.count <= QuickLinkTemplate.maxTemplateLength &&
-                (try? QuickLinkTemplate.validate(value.template)) != nil
-            }
+            (try? LibraryBackupValidation.quickLinks(values)) != nil
         })
     }
 
@@ -393,6 +386,47 @@ final class QuickLinksModel: ObservableObject {
         } catch let failure {
             error = failure.localizedDescription
         }
+    }
+
+    // MARK: - Library backups
+
+    var libraryBackupKind: LibraryBackupKind { .quicklinks }
+    var libraryBackupRecords: [LibraryBackupRecord] { links.map { .quickLink($0) } }
+    /// Quick links have no draft, so there is nothing unsaved to block a
+    /// transfer.
+    var libraryBackupIsDirty: Bool { false }
+    var libraryBackupNeedsRecovery: Bool { store.damaged }
+    /// The message of the last failed save, if there is one.
+    var libraryBackupError: String? { error }
+    var libraryBackupChanges: AnyPublisher<Void, Never> { objectWillChange.eraseToAnyPublisher() }
+
+    /// The bytes of the library as it is saved right now.
+    func libraryBackupPayload() throws -> Data { try LibraryBackupCodec.encodeQuickLinks(links) }
+
+    /// Adds the imported links with one save. Nothing that is already here is
+    /// changed, and a failed save keeps the array, the file and the selection.
+    @discardableResult
+    func libraryBackupApply(_ additions: [LibraryBackupRecord]) -> Bool {
+        guard !store.damaged else {
+            error = "Quick links need backup and reset / 快捷連結需先備份並重設"
+            return false
+        }
+        var incoming: [QuickLink] = []
+        for record in additions {
+            guard case .quickLink(let link) = record else {
+                error = "This is not a quick links backup / 這不是快捷連結備份"
+                return false
+            }
+            incoming.append(link)
+        }
+        let merged = links + incoming
+        do {
+            try LibraryBackupValidation.quickLinks(merged)
+        } catch {
+            self.error = "The merged data would be too large / 合併後的資料會超過上限"
+            return false
+        }
+        return persist(merged)
     }
 
     // MARK: Opening

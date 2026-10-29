@@ -188,6 +188,7 @@ struct QuickNotesToolsView: View {
                     }
                 }
             } else { WorkbenchEmpty(symbol: "note.text", text: c("選一筆筆記，或記下新的想法。", "Choose a note, or start a new thought.")) }
+            LibraryBackupControls(model: model, language: language, preview: preview)
             if let error = model.error { Text(error).foregroundStyle(.orange).font(.caption) }
             if model.needsRecovery { Button(c("備份損壞資料並重設", "Back up damaged data and reset")) { model.recover() } }
             if let url = model.exported { Text(c("已匯出到：", "Exported to: ") + url.lastPathComponent).font(.caption).textSelection(.enabled) }

@@ -93,7 +93,14 @@ struct ProductivityStateTests {
         let model = QuickNotesModel(root: root); defer { model.stop() }
         #expect(model.create(title: "../not-a-path", body: "Initial"))
         model.editBody("Edited text\n- one")
-        try await Task.sleep(for: .milliseconds(700))
+        // The autosave is a task, so it can start late when other work runs at
+        // the same time. Wait for the saved draft on a monotonic clock, but
+        // never longer than three seconds.
+        let clock = ContinuousClock()
+        let deadline = clock.now.advanced(by: .seconds(3))
+        while model.dirty, clock.now < deadline {
+            try await Task.sleep(for: .milliseconds(20))
+        }
         #expect(!model.dirty)
         let reopened = QuickNotesModel(root: root); defer { reopened.stop() }
         #expect(reopened.notes.first?.body == "Edited text\n- one")

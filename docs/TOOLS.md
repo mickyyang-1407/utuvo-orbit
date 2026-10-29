@@ -138,3 +138,10 @@ This candidate adds three workbench pages and action-search entries. Actual GUI,
 - **File integrity:** explicitly choose up to eight regular files and press Compute. SHA-256 is the default; SHA-512 and compatibility MD5 are available. Orbit streams at most 1 MiB per read and supports cancellation. It rejects symbolic links, folders and special files, and refuses results when the descriptor metadata or path identity changes during the read. These checks do not create an atomic snapshot. A supplied expected hex checksum ignores case/whitespace and must have the correct length. With two successful inputs, Orbit compares their hashes. MD5 is only for compatibility; a matching hash is not proof of byte identity or authenticity. Copy a hash or send the report to Text. File names and contents are not persisted by this tool.
 
 These are independent implementations informed by [Raycast Quicklinks](https://manual.raycast.com/quicklinks) and [dynamic placeholders](https://manual.raycast.com/dynamic-placeholders). No competitor code or assets were copied.
+
+
+## Local 0.12.0 (17) candidate: portable libraries
+
+Notes, Snippets and Quicklinks each have backup/import controls. Export a versioned JSON file, or preview a backup and explicitly merge it. IDs, exact text, pins, dates, keywords and Notes' Recently Deleted are retained. Identical entries are skipped; conflicting IDs/keywords or capacity limits refuse the entire import. Existing entries are never replaced. A changed library invalidates the preview. Unsaved drafts or damaged storage block transfers.
+
+Backups are plain text, created as private files in a new folder you choose. There is no cloud sync or whole-app/clipboard/settings backup. Default preview disables file access; explicit Debug QA file actions use temporary fixtures. Native GUI acceptance remains pending. [Format, limits and workflow](LIBRARY-BACKUPS.md).

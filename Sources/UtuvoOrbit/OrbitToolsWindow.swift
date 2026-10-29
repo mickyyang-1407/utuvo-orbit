@@ -187,8 +187,10 @@ struct OrbitToolsView: View {
                             case .calculator: CalculatorToolsView(model: workbench.calculator, language: preferences.values.language, copyText: workbench.copyText)
                             case .clocks: WorldClockToolsView(model: workbench.clocks, language: preferences.values.language, copyText: workbench.copyText)
                             case .notes: QuickNotesToolsView(model: workbench.notes, language: preferences.values.language, preview: preview && !allowFileActionsInPreview, copyText: workbench.copyText, onSendToText: { text in workbench.text.input = text; navigation.page = .text })
-                                            case .links: QuickLinksToolsView(model: workbench.quicklinks, language: preferences.values.language)
+                                            case .links: QuickLinksToolsView(model: workbench.quicklinks, language: preferences.values.language,
+                                                                               preview: preview && !allowFileActionsInPreview)
                             case .snippets: SnippetsToolsView(model: workbench.snippets, language: preferences.values.language,
+                                                             preview: preview && !allowFileActionsInPreview,
                                                              onSendToText: { text in workbench.text.input = text; navigation.page = .text },
                                                              onSendToNotes: { title, text in workbench.notes.create(title: title, body: text); navigation.page = .notes })
                             case .integrity: FileIntegrityToolsView(model: workbench.integrity, language: preferences.values.language,

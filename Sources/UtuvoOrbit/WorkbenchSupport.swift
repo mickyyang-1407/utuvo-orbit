@@ -1,4 +1,5 @@
 import AppKit
+import Darwin
 import OrbitCore
 import UniformTypeIdentifiers
 
@@ -36,20 +37,86 @@ final class ToolStorage<Value: Codable> {
         }
         return decoded
     }
+    /// A seam for a real failure test: throwing here leaves the saved file
+    /// exactly as it was. It runs before the file is committed.
+    var beforeFileCommit: (() throws -> Void)?
     func save(_ value: Value) throws {
         guard !damaged else { throw WorkbenchError.invalid("Storage needs backup and reset / 資料需先備份並重設") }
         let data = try JSONEncoder().encode(value)
         if let fileURL {
-            try FileManager.default.createDirectory(at: fileURL.deletingLastPathComponent(), withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
-            try data.write(to: fileURL, options: .atomic)
-            try FileManager.default.setAttributes([.posixPermissions: 0o600], ofItemAtPath: fileURL.path)
+            try writeAtomically(data, to: fileURL)
         } else { defaults?.set(data, forKey: key) }
+    }
+
+    /// Writes the bytes with one private temporary file in the same folder and
+    /// one rename.
+    ///
+    /// Everything that can fail happens before the rename, so a failure never
+    /// leaves a half written file behind, never overwrites anything and never
+    /// reports a failure after the file was already changed.
+    private func writeAtomically(_ data: Data, to fileURL: URL) throws {
+        let directory = fileURL.deletingLastPathComponent()
+        try FileManager.default.createDirectory(at: directory, withIntermediateDirectories: true, attributes: [.posixPermissions: 0o700])
+        // The name is random and the file is created exclusively, so a link or
+        // an existing file is never followed or replaced.
+        let temporary = directory.appendingPathComponent("." + fileURL.lastPathComponent + "." + UUID().uuidString + ".tmp")
+        let descriptor = temporary.path.withCString { path in
+            open(path, O_WRONLY | O_CREAT | O_EXCL | O_NOFOLLOW | O_CLOEXEC, 0o600)
+        }
+        guard descriptor >= 0 else {
+            throw WorkbenchError.invalid("The library file could not be written / 無法寫入檔案")
+        }
+        var closed = false
+        defer { if !closed { close(descriptor) } }
+        do {
+            try data.withUnsafeBytes { raw in
+                guard let base = raw.baseAddress else { return }
+                var offset = 0
+                while offset < raw.count {
+                    let written = write(descriptor, base.advanced(by: offset), raw.count - offset)
+                    if written < 0 {
+                        if errno == EINTR { continue }
+                        throw WorkbenchError.invalid("The library file could not be written / 無法寫入檔案")
+                    }
+                    offset += written
+                }
+            }
+            // The permissions are set before the commit, so the file is never
+            // readable by anyone else, not even for a moment.
+            guard fchmod(descriptor, 0o600) == 0 else {
+                throw WorkbenchError.invalid("The library file could not be written / 無法寫入檔案")
+            }
+            guard fsync(descriptor) == 0 else {
+                throw WorkbenchError.invalid("The library file could not be written / 無法寫入檔案")
+            }
+            try beforeFileCommit?()
+        } catch {
+            close(descriptor); closed = true
+            unlink(temporary.path)
+            throw error
+        }
+        close(descriptor); closed = true
+        // The commit. Nothing that can fail may follow it.
+        guard rename(temporary.path, fileURL.path) == 0 else {
+            unlink(temporary.path)
+            throw WorkbenchError.invalid("The library file could not be written / 無法寫入檔案")
+        }
     }
     func backupAndReset(_ value: Value) throws {
         if let fileURL, FileManager.default.fileExists(atPath: fileURL.path) {
             try FileManager.default.copyItem(at: fileURL, to: fileURL.appendingPathExtension("backup." + UUID().uuidString))
         } else if let raw = defaults?.object(forKey: key) { defaults?.set(raw, forKey: key + ".backup." + UUID().uuidString) }
-        damaged = false; try save(value)
+        // The reset only counts when the bytes were really replaced. If the
+        // save fails, the library stays damaged, so the caller is told the
+        // truth and every transfer stays blocked.
+        let wasDamaged = damaged
+        damaged = false
+        do {
+            try save(value)
+        } catch {
+            damaged = wasDamaged
+            throw error
+        }
     }
 }
 

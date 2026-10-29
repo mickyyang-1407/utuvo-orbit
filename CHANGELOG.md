@@ -1,5 +1,12 @@
 # Changelog
 
+## 0.12.0 (17) — local candidate, GUI acceptance pending
+
+- Adds per-library JSON backups and previewed merge imports for Notes, Snippets and Quicklinks, preserving text, IDs, pins, dates, keywords and Recently Deleted.
+- Refuses conflicts, stale previews, unsaved drafts, damaged libraries and merged limits; identical reimports make no copies or writes.
+- Uses private unique exports, bounded regular-file reads and atomic private library writes with a pre-commit failure seam.
+- Keeps every feature free and MIT licensed. GUI and native screenshot acceptance remain deferred to the nightly session; no stable binary/feed or App Store update.
+
 ## 0.11.0 (16) — local candidate, GUI acceptance pending
 
 - Makes both distribution targets fully free: removes StoreKit trial/purchase/paywall gates and purchase/restore menus. Existing MIT licensing continues; the source export includes the Mac App Store target.

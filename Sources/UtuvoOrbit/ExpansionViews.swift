@@ -7,6 +7,7 @@ import SwiftUI
 struct QuickLinksToolsView: View {
     @ObservedObject var model: QuickLinksModel
     var language: AppLanguage
+    var preview: Bool
     private var c: ToolCopy { ToolCopy(language: language) }
 
     @State private var newTitle = ""
@@ -102,6 +103,7 @@ struct QuickLinksToolsView: View {
                 }
             }
 
+            LibraryBackupControls(model: model, language: language, preview: preview)
             if let error = model.error { Text(error).foregroundStyle(.orange).font(.caption) }
             if model.needsRecovery {
                 Button(c("備份損壞資料並重設", "Back up damaged data and reset")) { model.recover() }
@@ -139,6 +141,7 @@ struct QuickLinksToolsView: View {
 struct SnippetsToolsView: View {
     @ObservedObject var model: SnippetsModel
     var language: AppLanguage
+    var preview: Bool
     var onSendToText: (String) -> Void
     var onSendToNotes: (_ title: String, _ body: String) -> Void
     @State private var deleting: Snippet?
@@ -245,6 +248,7 @@ struct SnippetsToolsView: View {
                 WorkbenchEmpty(symbol: "text.quote", text: c("選一則片段，或新增一則。", "Choose a snippet, or add a new one."))
             }
 
+            LibraryBackupControls(model: model, language: language, preview: preview)
             if let error = model.error { Text(error).foregroundStyle(.orange).font(.caption) }
             if model.needsRecovery {
                 Button(c("備份損壞資料並重設", "Back up damaged data and reset")) { model.recover() }

@@ -23,7 +23,7 @@ files = [
     'scripts/optimize-web-images.py',
     'scripts/prepare-update.py', 'docs/UPDATING.md',
     'docs/INSTALL.md', 'docs/USER-GUIDE.md', 'docs/USER-GUIDE.zh-Hant.md', 'docs/TOOLS.md', 'docs/TOOLS-SCREENSHOTS.md',
-    'docs/DEVELOPMENT.md', 'docs/LAUNCH-COPY.md',
+    'docs/DEVELOPMENT.md', 'docs/LAUNCH-COPY.md', 'docs/LIBRARY-BACKUPS.md',
     # Mac App Store build: source, shims, tests, assets, entitlements.
     'MAS/Info.plist', 'MAS/UTUVOOrbitMAS.entitlements', 'MAS/ExportOptions-AppStore.plist',
 ]

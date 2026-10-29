@@ -26,6 +26,8 @@ enum SnippetError: LocalizedError, Equatable {
     case invalidFieldName
     case tooManyFields
     case missingFieldValue
+    case duplicateIdentifier
+    case invalidDate
 
     var errorDescription: String? {
         switch self {
@@ -41,6 +43,8 @@ enum SnippetError: LocalizedError, Equatable {
         case .invalidFieldName: "Field names start with a letter and use letters, digits or _ / 欄位名稱要以字母開頭，只能用字母、數字或底線"
         case .tooManyFields: "Up to 16 custom fields / 最多 16 個自訂欄位"
         case .missingFieldValue: "Fill in every field first / 請先填寫所有欄位"
+        case .duplicateIdentifier: "A snippet repeats an ID / 有片段重複了 ID"
+        case .invalidDate: "A snippet has an unusable date / 有片段的日期不合法"
         }
     }
 }
@@ -202,23 +206,7 @@ final class SnippetsModel: ObservableObject {
             .appendingPathComponent("UTUVO Orbit/Snippets", isDirectory: true)).appendingPathComponent("snippets.json")
         store = ToolStorage(nil, "snippets", fileURL: url)
         snippets = store.load(fallback: [], validate: { values in
-            guard values.count <= SnippetTemplate.maxSnippets,
-                  Set(values.map(\.id)).count == values.count,
-                  values.reduce(0, { $0 + $1.body.utf8.count }) <= SnippetTemplate.maxTotalBytes else { return false }
-            var keywords: Set<String> = []
-            for value in values {
-                guard !value.title.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty,
-                      value.title.count <= SnippetTemplate.maxTitleLength,
-                      value.keyword.count <= SnippetTemplate.maxKeywordLength,
-                      value.body.utf8.count <= SnippetTemplate.maxBodyBytes,
-                      value.modified.timeIntervalSince1970.isFinite else { return false }
-                let keyword = value.keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-                if !keyword.isEmpty {
-                    guard !keywords.contains(keyword) else { return false }
-                    keywords.insert(keyword)
-                }
-            }
-            return true
+            (try? LibraryBackupValidation.snippets(values)) != nil
         })
         if let first = snippets.first {
             selectDraft(first)
@@ -475,46 +463,77 @@ final class SnippetsModel: ObservableObject {
         }
     }
 
-    /// The same rules the loader applies, so nothing invalid can ever reach
-    /// the file. A library that would come back damaged is refused here
-    /// instead: the draft stays dirty and the caller keeps the block.
+    /// The same rules the loader and the backup use, so nothing invalid can
+    /// ever reach the file. A library that would come back damaged is refused
+    /// here instead: the draft stays dirty and the caller keeps the block.
     private func validate(_ records: [Snippet]) -> Bool {
-        guard records.count <= SnippetTemplate.maxSnippets else {
-            error = SnippetError.tooManySnippets.errorDescription
+        do {
+            try LibraryBackupValidation.snippets(records)
+            return true
+        } catch let failure as LibraryBackupError {
+            error = SnippetsModel.message(for: failure)
+            return false
+        } catch {
+            self.error = error.localizedDescription
             return false
         }
-        guard records.reduce(0, { $0 + $1.body.utf8.count }) <= SnippetTemplate.maxTotalBytes else {
-            error = SnippetError.storageFull.errorDescription
+    }
+
+    /// The wording the user already knows, kept next to the shared rules.
+    private static func message(for failure: LibraryBackupError) -> String? {
+        guard case .recordInvalid(let violation) = failure else { return failure.localizedDescription }
+        switch violation {
+        case .tooManyRecords: return SnippetError.tooManySnippets.errorDescription
+        case .duplicateIdentifier: return SnippetError.duplicateIdentifier.errorDescription
+        case .storageFull: return SnippetError.storageFull.errorDescription
+        case .emptyTitle: return SnippetError.emptyTitle.errorDescription
+        case .titleTooLong: return SnippetError.titleTooLong.errorDescription
+        case .keywordTooLong: return SnippetError.keywordTooLong.errorDescription
+        case .bodyTooLarge: return SnippetError.bodyTooLarge.errorDescription
+        case .duplicateKeyword: return SnippetError.duplicateKeyword.errorDescription
+        case .invalidDate: return SnippetError.invalidDate.errorDescription
+        default: return failure.localizedDescription
+        }
+    }
+
+    // MARK: - Library backups
+
+    var libraryBackupKind: LibraryBackupKind { .snippets }
+    var libraryBackupRecords: [LibraryBackupRecord] { snippets.map { .snippet($0) } }
+    /// A draft that is not saved yet blocks every transfer.
+    var libraryBackupIsDirty: Bool { dirty }
+    var libraryBackupNeedsRecovery: Bool { store.damaged }
+    /// The message of the last failed save, if there is one.
+    var libraryBackupError: String? { error }
+    var libraryBackupChanges: AnyPublisher<Void, Never> {
+        objectWillChange.eraseToAnyPublisher()
+    }
+
+    /// The bytes of the library as it is saved right now.
+    func libraryBackupPayload() throws -> Data { try LibraryBackupCodec.encodeSnippets(snippets) }
+
+    /// Adds the imported snippets with one save. Nothing that is already here
+    /// is changed, and a failed save keeps the array, the file and the draft.
+    @discardableResult
+    func libraryBackupApply(_ additions: [LibraryBackupRecord]) -> Bool {
+        guard !store.damaged else {
+            error = "Snippets need backup and reset / 片段需先備份並重設"
             return false
         }
-        var keywords: Set<String> = []
-        for record in records {
-            let title = record.title.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !title.isEmpty else {
-                error = SnippetError.emptyTitle.errorDescription
-                return false
-            }
-            guard title.count <= SnippetTemplate.maxTitleLength else {
-                error = SnippetError.titleTooLong.errorDescription
-                return false
-            }
-            guard record.keyword.count <= SnippetTemplate.maxKeywordLength else {
-                error = SnippetError.keywordTooLong.errorDescription
-                return false
-            }
-            guard record.body.utf8.count <= SnippetTemplate.maxBodyBytes else {
-                error = SnippetError.bodyTooLarge.errorDescription
-                return false
-            }
-            let keyword = record.keyword.trimmingCharacters(in: .whitespacesAndNewlines).lowercased()
-            if !keyword.isEmpty {
-                guard !keywords.contains(keyword) else {
-                    error = SnippetError.duplicateKeyword.errorDescription
-                    return false
-                }
-                keywords.insert(keyword)
-            }
+        guard !dirty else {
+            error = "Please save the draft first / 請先儲存目前的草稿"
+            return false
         }
+        var incoming: [Snippet] = []
+        for record in additions {
+            guard case .snippet(let snippet) = record else {
+                error = "This is not a snippets backup / 這不是片段備份"
+                return false
+            }
+            incoming.append(snippet)
+        }
+        guard save(snippets + incoming) else { return false }
+        if selectedID == nil, let first = incoming.first { selectDraft(first) }
         return true
     }
 }
