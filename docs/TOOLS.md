@@ -1,6 +1,6 @@
 # 隨手工具 / Quick Tools
 
-Available in the unreleased 0.9 local candidate. / 適用於尚未發布的 0.9 本機候選版。介面見[畫面圖集](TOOLS-SCREENSHOTS.md)。
+Current source candidate: 0.12.1 (18); published engineering prerelease: 0.9.1. / 目前原始碼候選 0.12.1 (18)，已發布工程候選仍為 0.9.1。介面見[畫面圖集](TOOLS-SCREENSHOTS.md)。
 
 ## 開啟
 
@@ -83,7 +83,7 @@ QR Code 支援 1–1800 UTF-8 bytes，輸出含四模組白邊的清晰 PNG；�
 
 ## 截圖與編修
 
-使用 macOS 的 ⌘⇧4／⌘⇧5 儲存截圖，再在「截圖」頁按「匯入圖片」。這條匯入、編修、匯出流程已在沙盒內實測。原生「擷取視窗／擷取螢幕」採系統內容選擇器與單張圖片 API，但目前這台測試 Mac 未出現選擇器，尚未通過實機驗收；如持續等待，可按「取消」並改用匯入。
+原生「擷取視窗／擷取螢幕」讓你在系統選擇器中明確選取內容，只接收一張完整畫面後便停止，不收取音訊或產生錄影檔。0.12.1 已透過系統單視窗確認，讓真產品後端取得指定測試卡 1240×864，並通過裁切／不透明遮蓋、PNG／OCR 及圖片副本逐像素讀回；此證據只涵蓋該測試視窗，螢幕擷取與「顯示所有視窗」自動選取不在已通過範圍。已發布的 0.9.1 仍保留原生截圖限制。也可用 macOS 的 ⌘⇧4／⌘⇧5 儲存截圖，再按「匯入圖片」；這條匯入、編修、匯出流程已有沙盒實測。
 
 在圖片上拖曳套用裁切、箭頭、框線或遮蓋，可按「復原」或「還原原圖」。每張圖的編修紀錄會保存在本機，切換最近截圖或重新開啟後仍可繼續；每張最多 32 次編修。紀錄損壞時保留原圖與原紀錄，需按「備份並還原原圖」才另存備份並重設。
 
@@ -113,4 +113,35 @@ Open **Tools** in Orbit's panel or **Quick Tools** from its status-item menu. **
 
 Scenes also support rename/reorder and explicit backup/reset for damaged storage. The timer supports a custom 1–120-minute duration and saves options without restarting a countdown on launch. Pomodoro keeps the separate countdown duration. File drops merge and deduplicate paths; removing a reference preserves the file.
 
-**Screenshots:** take a macOS screenshot with ⌘⇧4/⌘⇧5, then import it. The native ScreenCaptureKit window/display picker is not accepted on the test Mac; cancel if it does not appear and use import instead. Drag to crop, add arrows/boxes or apply opaque black redaction. Undo/reset and per-image edit history persist locally, with a 32-edit limit and backup/reset for damaged drafts. Copy Image, Copy Text and PNG export use the edited pixels. Originals remain local; share the flattened edited output. Send a copy to File Tools or an enabled Clothesline. The recent picker lists 24 items; the folder button opens the full library.
+**Screenshots:** take a macOS screenshot with ⌘⇧4/⌘⇧5, then import it. In source candidate 0.12.1, the real backend passed selected-window fixture capture through macOS per-window sharing confirmation, followed by editor/PNG/OCR/copy readback. This does not accept display capture or automated Show All Windows selection; cancel and use import if the system selection is unavailable. The published 0.9.1 retains its earlier native-capture limitation. Drag to crop, add arrows/boxes or apply opaque black redaction. Undo/reset and per-image edit history persist locally, with a 32-edit limit and backup/reset for damaged drafts. Copy Image, Copy Text and PNG export use the edited pixels. Originals remain local; share the flattened edited output. Send a copy to File Tools or an enabled Clothesline. The recent picker lists 24 items; the folder button opens the full library.
+
+
+## Local 0.10.0 (15) candidate: calculator, world clock and notes
+
+This source candidate is local. Daytime checks use isolated fixtures/builds. Nighttime QA covered targeted English/light and Traditional Chinese/dark library paths, Command-K/Escape, calculator/unit/checksum controls, and designated-window native capture/editor readback. New library/screenshot views add no custom animation/transition; no global motion setting was changed.
+
+- **Calculator:** bounded arithmetic parser, parentheses, right-associative powers, postfix percent (divide by 100), pi/e and common functions. Decimal input uses `.`, trigonometric functions use radians, and results show up to 12 significant digits. Invalid input, division by zero and non-finite results are refused. The last 30 deliberate calculations are saved; Clear history is available.
+- **Unit conversion:** length, mass, temperature, area, volume, speed, duration, data, angle and energy. Decimal MB and binary MiB are distinct; liquid gallons/fluid ounces are US units. Conversions refuse mismatched dimensions and temperatures below absolute zero. Input can be a supported arithmetic expression.
+- **World clock:** up to 16 favorite IANA zones, reorder/remove, English identifiers and common Traditional Chinese city search, live time or a chosen instant. The preview date picker uses the selected reference zone. Foundation's zone data supplies offsets at that instant, including daylight saving; date differences are visible. No time service or account is required.
+- **Quick notes:** local autosave, search, pins, recoverable Recently Deleted and Markdown export to a unique output folder. Up to 100 notes including deleted notes, 64 KiB per body and 2 MB combined. Data is under Application Support `UTUVO Orbit/Notes/notes.json` (the MAS version uses its container); the notes folder is created with 700 and the file with 600 permissions. Unreadable data is retained until explicit backup/reset. A failed save keeps the draft and blocks switching away; quitting offers Keep Editing or Quit Without Saving. Permanent emptying of Recently Deleted requires confirmation.
+- **Connections:** all three pages appear in the action search. Notes can send their text to the existing Text tools. Page navigation retains the workbench's models. The sidebar now scrolls as the tool list grows.
+
+Independent implementations informed by [Raycast Calculator](https://manual.raycast.com/calculator), [Raycast Notes](https://www.raycast.com/core-features/notes) and the [World Clock store listing](https://www.raycast.com/koinzhang/world-clock). No competitor code or assets were copied.
+
+
+## Local 0.11.0 (16) candidate: links, snippets and file integrity
+
+This candidate adds three workbench pages and action-search entries. Targeted isolated GUI paths have since passed. Native browser/real system pasteboard handoffs and unrestricted display capture are outside that acceptance. Daytime checks use isolated fixtures and compilation.
+
+- **Web Quicklinks:** save up to 50 links, edit, pin and search them. HTTP(S) URLs need a fixed host and no embedded credentials. Place `{query}` in a path or query parameter, then enter a term when opening the link. Orbit encodes the raw term once, including `+`, `&`, `/`, `%` and Unicode. Fixed links open directly after your click; templates first show the input form. No background favicon fetch or network request is made by this tool. Links use private local storage under `UTUVO Orbit/Quicklinks`; damaged data can be backed up before reset.
+- **Snippets:** save up to 100 plain-text entries with titles, pins and optional unique keywords. Use `{{date}}` (`yyyy-MM-dd`), `{{time}}` (`HH:mm`) and up to 16 named fields, such as `{{name}}` or `{{email}}`. Field names start with an ASCII letter and contain letters, digits or underscores, up to 32 characters. Fill required fields, preview, then choose Copy, Send to Text or Send to Notes. Values are inserted once, so a value containing `{{date}}` stays literal. Nested JSON without `{{` remains ordinary text. Bodies are limited to 64 KiB and the library to 2 MB. Autosave retains a failed draft and protects switching/quit. Deletion needs confirmation. Storage is private and local under `UTUVO Orbit/Snippets`; no global text expansion, automatic typing or Accessibility permission is used.
+- **File integrity:** explicitly choose up to eight regular files and press Compute. SHA-256 is the default; SHA-512 and compatibility MD5 are available. Orbit streams at most 1 MiB per read and supports cancellation. It rejects symbolic links, folders and special files, and refuses results when the descriptor metadata or path identity changes during the read. These checks do not create an atomic snapshot. A supplied expected hex checksum ignores case/whitespace and must have the correct length. With two successful inputs, Orbit compares their hashes. MD5 is only for compatibility; a matching hash is not proof of byte identity or authenticity. Copy a hash or send the report to Text. File names and contents are not persisted by this tool.
+
+These are independent implementations informed by [Raycast Quicklinks](https://manual.raycast.com/quicklinks) and [dynamic placeholders](https://manual.raycast.com/dynamic-placeholders). No competitor code or assets were copied.
+
+
+## Local 0.12.0 (17) candidate: portable libraries
+
+Notes, Snippets and Quicklinks each have backup/import controls. Export a versioned JSON file, or preview a backup and explicitly merge it. IDs, exact text, pins, dates, keywords and Notes' Recently Deleted are retained. Identical entries are skipped; conflicting IDs/keywords or capacity limits refuse the entire import. Existing entries are never replaced. A changed library invalidates the preview. Unsaved drafts or damaged storage block transfers.
+
+Backups are plain text, created as private files in a new folder you choose. There is no cloud sync or whole-app/clipboard/settings backup. Default preview disables file access; explicit Debug QA file actions use temporary fixtures. English/light export → fresh Traditional Chinese/dark merge → re-export preserved every record field in isolated GUI QA; repeat import, conflict/cancel and empty-library controls passed. [Format, limits and workflow](LIBRARY-BACKUPS.md).

@@ -7,12 +7,24 @@ import ClotheslineKit
 @MainActor
 private final class PendingCapture: ScreenshotCapturing {
     var requests = 0
-    var pending: CheckedContinuation<CGImage, any Error>?
-    func capture(_ mode: ScreenshotCaptureMode) async throws -> CGImage {
-        requests += 1
-        return try await withCheckedThrowingContinuation { pending = $0 }
+    private var pendingRequests: [Int: CheckedContinuation<CGImage, any Error>] = [:]
+    private(set) var receivedModes: [ScreenshotCaptureMode] = []
+    var pending: CheckedContinuation<CGImage, any Error>? {
+        get { pendingRequests[requests] }
+        set {
+            if let newValue { pendingRequests[requests] = newValue }
+            else { pendingRequests.removeValue(forKey: requests) }
+        }
     }
-    func cancel() { pending?.resume(throwing: ScreenshotCaptureError.cancelled); pending = nil }
+    func capture(_ mode: ScreenshotCaptureMode) async throws -> CGImage {
+        requests += 1; receivedModes.append(mode)
+        let request = requests
+        return try await withCheckedThrowingContinuation { pendingRequests[request] = $0 }
+    }
+    func cancel() {
+        let pending = Array(pendingRequests.values); pendingRequests.removeAll()
+        for continuation in pending { continuation.resume(throwing: ScreenshotCaptureError.cancelled) }
+    }
 }
 
 @MainActor
@@ -36,11 +48,57 @@ struct ScreenshotToolsTests {
         model.cancel(); try await wait(model)
         #expect(!model.failed && !model.waitingForSelection)
     }
-    private func wait(_ model: ScreenshotToolsModel) async throws {
-        let end = ContinuousClock.now.advanced(by: .seconds(5))
+    private func wait(_ model: ScreenshotToolsModel, timeout: Duration = .seconds(5)) async throws {
+        let end = ContinuousClock.now.advanced(by: timeout)
         while model.busy && ContinuousClock.now < end { try await Task.sleep(for: .milliseconds(2)) }
         #expect(!model.busy)
     }
+
+    @Test func immediateCancelBeforeQueuedCaptureNeverCallsBackend() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let capture = PendingCapture(), model = ScreenshotToolsModel(root: root, capture: capture)
+        model.language = .english
+        defer { model.stop() }
+
+        model.take(.window)
+        model.cancel()
+        for _ in 0..<50 { await Task.yield() }
+
+        #expect(capture.requests == 0 && capture.receivedModes.isEmpty)
+        #expect(!model.busy && !model.waitingForSelection && model.image == nil && !model.failed)
+    }
+
+    @Test func immediateCancelThenNewCaptureKeepsOnlyNewGenerationActive() async throws {
+        let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
+        defer { try? FileManager.default.removeItem(at: root) }
+        let capture = PendingCapture(), model = ScreenshotToolsModel(root: root, capture: capture)
+        defer { model.stop() }
+
+        model.take(.window)
+        model.cancel()
+        model.take(.display)
+        for _ in 0..<50 where capture.pending == nil { await Task.yield() }
+        for _ in 0..<50 { await Task.yield() }
+        #expect(capture.requests == 1 && capture.receivedModes == [.display])
+        #expect(model.busy && model.waitingForSelection && model.image == nil)
+
+        let pending = try #require(capture.pending)
+        capture.pending = nil
+        pending.resume(returning: Self.onePixel())
+        try await wait(model)
+        for _ in 0..<50 { await Task.yield() }
+        #expect(model.image?.width == 1 && model.image?.height == 1)
+        #expect(!model.busy && !model.waitingForSelection && !model.failed)
+    }
+
+    private static func onePixel() -> CGImage {
+        let context = CGContext(data: nil, width: 1, height: 1, bitsPerComponent: 8, bytesPerRow: 0,
+                                space: CGColorSpaceCreateDeviceRGB(),
+                                bitmapInfo: CGImageAlphaInfo.premultipliedLast.rawValue)!
+        return context.makeImage()!
+    }
+
     @Test func captureRequiresExplicitActionAndCancellationLeavesNoImage() async throws {
         let root = FileManager.default.temporaryDirectory.appendingPathComponent(UUID().uuidString)
         defer { try? FileManager.default.removeItem(at: root) }
@@ -112,11 +170,13 @@ struct ScreenshotToolsTests {
         var text: [String] = []
         let model = ScreenshotToolsModel(root: root, capture: PreviewScreenshotCapture(), copyText: { text.append($0) })
         defer { model.stop() }
-        model.loadFixture(); model.recognize(); try await wait(model)
+        // Accurate bilingual Vision OCR took 17.5 s cold in the isolated fixture probe.
+        // Keep a bounded OCR deadline without changing the 5 s editing/cancel checks.
+        model.loadFixture(); model.recognize(); try await wait(model, timeout: .seconds(45))
         #expect(text.count == 1)
         #expect(text.first?.contains("Orbit") == true)
         model.tool = .redact; model.apply(from: .zero, to: .init(x: 1, y: 1)); try await wait(model)
-        model.recognize(); try await wait(model)
+        model.recognize(); try await wait(model, timeout: .seconds(45))
         #expect(text.count == 1)
         #expect(!model.failed)
     }

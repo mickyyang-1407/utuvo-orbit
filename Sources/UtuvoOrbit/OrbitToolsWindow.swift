@@ -7,7 +7,7 @@ import ShelfKit
 @MainActor
 final class OrbitToolsNavigation: ObservableObject {
     enum Page: String, CaseIterable, Identifiable {
-        case modes, actions, audio, timer, reminders, clipboard, text, files, pdf, screenshots, colors, qr
+        case modes, actions, audio, timer, clocks, reminders, clipboard, notes, snippets, links, integrity, text, calculator, files, pdf, screenshots, colors, qr
         var id: Self { self }
         func title(_ c: ToolCopy) -> String {
             switch self {
@@ -17,10 +17,15 @@ final class OrbitToolsNavigation: ObservableObject {
             case .text: c("文字工具", "Text"); case .files: c("檔案處理", "Files")
             case .pdf: "PDF"; case .screenshots: c("截圖", "Screenshots")
             case .colors: c("取色器", "Colors"); case .qr: "QR Code"
+            case .calculator: c("計算與換算", "Calculator"); case .clocks: c("世界時鐘", "World clock")
+            case .notes: c("快速筆記", "Notes")
+            case .links: c("快捷連結", "Quick links")
+            case .snippets: c("文字片段", "Snippets")
+            case .integrity: c("檔案檢查", "File integrity")
             }
         }
         var symbol: String {
-            switch self { case .modes: "sparkles"; case .actions: "command"; case .audio: "waveform"; case .timer: "timer"; case .reminders: "bell"; case .clipboard: "doc.on.clipboard"; case .text: "text.alignleft"; case .files: "folder"; case .pdf: "doc.richtext"; case .screenshots: "crop"; case .colors: "eyedropper"; case .qr: "qrcode" }
+            switch self { case .modes: "sparkles"; case .actions: "command"; case .audio: "waveform"; case .timer: "timer"; case .reminders: "bell"; case .clipboard: "doc.on.clipboard"; case .text: "text.alignleft"; case .files: "folder"; case .pdf: "doc.richtext"; case .screenshots: "crop"; case .colors: "eyedropper"; case .qr: "qrcode"; case .calculator: "function"; case .clocks: "globe"; case .notes: "note.text"; case .links: "link"; case .snippets: "text.quote"; case .integrity: "checkmark.shield" }
         }
     }
     @Published var page: Page = .modes
@@ -39,14 +44,23 @@ final class OrbitToolsWindowController {
     private let preferences: OrbitPreferencesModel
     private let preview: Bool
     private let allowFileActionsInPreview: Bool
+    /// Opens the offline guide. The workbench and the help window show the
+    /// same content.
+    private let onOpenHelp: () -> Void
     private(set) var window: NSWindow?
     private var appearanceSubscription: AnyCancellable?
 
     init(preferences: OrbitPreferencesModel, scenes: AudioScenesModel, timer: OrbitTimerModel, preview: Bool = false, allowFileActionsInPreview: Bool = false,
-         screenshots: ScreenshotToolsModel? = nil, defaults: UserDefaults? = nil) {
+         screenshots: ScreenshotToolsModel? = nil, defaults: UserDefaults? = nil,
+         workbenchOverrides: OrbitWorkbenchOverrides? = nil,
+         onOpenHelp: @escaping () -> Void = {}) {
         self.preferences = preferences; self.scenes = scenes; self.timer = timer; self.preview = preview
         self.allowFileActionsInPreview = allowFileActionsInPreview
-        let workbench = OrbitWorkbench(scenes: scenes, timer: timer, preview: preview, defaults: defaults, language: preferences.values.language)
+        self.onOpenHelp = onOpenHelp
+        let workbench = OrbitWorkbench(scenes: scenes, timer: timer, preview: preview,
+                                       allowFileActionsInPreview: allowFileActionsInPreview,
+                                       defaults: defaults, language: preferences.values.language,
+                                       overrides: workbenchOverrides)
         self.workbench = workbench
         self.files = QuickFileToolsModel(copyText: workbench.copyText)
         self.screenshots = screenshots ?? ScreenshotToolsModel(preview: preview)
@@ -69,6 +83,7 @@ final class OrbitToolsWindowController {
         if let urls { files.setFiles(urls) }
         if window == nil {
             let view = OrbitToolsView(preferences: preferences, scenes: scenes, timer: timer, files: files, screenshots: screenshots, navigation: navigation, workbench: workbench, onOpenActions: { [weak self] in self?.showActions() },
+                                      onOpenHelp: onOpenHelp,
                                       preview: preview, allowFileActionsInPreview: allowFileActionsInPreview)
             let controller = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: controller)
@@ -103,6 +118,24 @@ final class OrbitToolsWindowController {
             OrbitAction(id: "mode." + mode.id.uuidString, title: mode.name, detail: c("啟動情境", "Start mode"), symbol: mode.symbol, perform: { [weak self] in self?.show(page: .modes); self?.workbench.modes.apply(mode) })
         } + scenes.scenes.map { scene in
             OrbitAction(id: "audio." + scene.id.uuidString, title: scene.name, detail: c("套用音訊情境", "Apply audio scene"), symbol: "waveform", perform: { [weak self] in self?.show(page: .audio); self?.scenes.apply(scene) })
+        } + workbench.quicklinks.links.map { link in
+            // Resolved by id at perform time so the action always uses the
+            // link's current state, not a stale copy.
+            OrbitAction(id: "quicklink." + link.id.uuidString, title: link.title, detail: c("開啟連結", "Open link"), symbol: "link", perform: { [weak self] in
+                guard let self else { return }
+                self.show(page: .links)
+                self.workbench.quicklinks.requestOpen(link.id)
+            })
+        } + workbench.snippets.snippets.map { snippet in
+            // The keyword travels in the detail so the action search finds the
+            // snippet by title or by keyword. The snippet itself is resolved
+            // by id when the action runs.
+            let detail = snippet.keyword.isEmpty ? c("開啟片段", "Open snippet") : snippet.keyword + " · " + c("開啟片段", "Open snippet")
+            return OrbitAction(id: "snippet." + snippet.id.uuidString, title: snippet.title, detail: detail, symbol: "text.quote", perform: { [weak self] in
+                guard let self else { return }
+                self.show(page: .snippets)
+                _ = self.workbench.snippets.select(snippet.id)
+            })
         }
     }
     func stop() { workbench.stop(); timer.stop(); screenshots.stop(); actionWindow?.orderOut(nil) }
@@ -126,6 +159,8 @@ struct OrbitToolsView: View {
     @ObservedObject var navigation: OrbitToolsNavigation
     let workbench: OrbitWorkbench
     var onOpenActions: () -> Void
+    /// Opens the offline guide, the same content the Settings help page shows.
+    var onOpenHelp: () -> Void = {}
     var preview = false
     var allowFileActionsInPreview = false
     @State private var renaming: AudioScene?
@@ -159,6 +194,18 @@ struct OrbitToolsView: View {
                             case .pdf: PDFToolsView(model: workbench.pdf, language: preferences.values.language, preview: preview && !allowFileActionsInPreview)
                             case .colors: ColorToolsView(model: workbench.colors, language: preferences.values.language, preview: preview)
                             case .qr: QRToolsView(model: workbench.qr, language: preferences.values.language, preview: preview && !allowFileActionsInPreview)
+                            case .calculator: CalculatorToolsView(model: workbench.calculator, language: preferences.values.language, copyText: workbench.copyText)
+                            case .clocks: WorldClockToolsView(model: workbench.clocks, language: preferences.values.language, copyText: workbench.copyText)
+                            case .notes: QuickNotesToolsView(model: workbench.notes, language: preferences.values.language, preview: preview && !allowFileActionsInPreview, copyText: workbench.copyText, onSendToText: { text in workbench.text.input = text; navigation.page = .text })
+                                            case .links: QuickLinksToolsView(model: workbench.quicklinks, language: preferences.values.language,
+                                                                               preview: preview && !allowFileActionsInPreview)
+                            case .snippets: SnippetsToolsView(model: workbench.snippets, language: preferences.values.language,
+                                                             preview: preview && !allowFileActionsInPreview,
+                                                             onSendToText: { text in workbench.text.input = text; navigation.page = .text },
+                                                             onSendToNotes: { title, text in workbench.notes.create(title: title, body: text); navigation.page = .notes })
+                            case .integrity: FileIntegrityToolsView(model: workbench.integrity, language: preferences.values.language,
+                                                                    preview: preview && !allowFileActionsInPreview,
+                                                                    onSendToText: { text in workbench.text.input = text; navigation.page = .text })
                             }
                         }.padding(28).frame(maxWidth: .infinity, alignment: .leading)
                     }
@@ -200,7 +247,9 @@ struct OrbitToolsView: View {
         let c = ToolCopy(language: preferences.values.language)
         return VStack(alignment: .leading, spacing: 4) {
             HStack(spacing: 10) { OrbitBrandMark(size: 32); VStack(alignment: .leading, spacing: 1) { Text("Orbit").font(.system(size: 20, weight: .semibold, design: .rounded)); Text(c("隨手工作台", "Your workbench")).font(.system(size: 10)).foregroundStyle(.secondary) } }.padding(.horizontal, 10).padding(.top, 22).padding(.bottom, 24)
-            ForEach(OrbitToolsNavigation.Page.allCases) { page in
+            ScrollView {
+              VStack(alignment: .leading, spacing: 4) {
+               ForEach(OrbitToolsNavigation.Page.allCases) { page in
                 if page == .clipboard || page == .files { Divider().padding(.vertical, 8).padding(.horizontal, 10) }
                 Button { navigation.page = page } label: {
                     HStack(spacing: 11) { Image(systemName: page.symbol).frame(width: 19); Text(page.title(c)).lineLimit(1).minimumScaleFactor(0.85); Spacer() }
@@ -208,8 +257,16 @@ struct OrbitToolsView: View {
                         .foregroundStyle(navigation.page == page ? OrbitPalette.accent : Color.primary.opacity(0.75))
                         .background(navigation.page == page ? OrbitPalette.accent.opacity(0.12) : Color.clear, in: RoundedRectangle(cornerRadius: 9))
                 }.buttonStyle(.plain).accessibilityAddTraits(navigation.page == page ? .isSelected : [])
+               }
+              }
             }
+            .scrollIndicators(.hidden)
             Spacer(minLength: 12)
+            Button { onOpenHelp() } label: {
+                HStack(spacing: 11) { Image(systemName: "questionmark.circle").frame(width: 19); Text(c("使用說明", "Help")).lineLimit(1); Spacer() }
+                    .font(.system(size: 12)).padding(.horizontal, 12).padding(.vertical, 9)
+                    .foregroundStyle(Color.primary.opacity(0.75))
+            }.buttonStyle(.plain).accessibilityLabel(c("開啟使用說明", "Open the guide"))
             Label(c("在你的 Mac 上完成", "Made local"), systemImage: "lock.shield").font(.system(size: 10)).foregroundStyle(.secondary).padding(10)
         }.padding(.horizontal, 12).frame(width: 170).frame(maxHeight: .infinity).background(.primary.opacity(0.025))
     }

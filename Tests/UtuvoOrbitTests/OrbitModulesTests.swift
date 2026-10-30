@@ -1,9 +1,12 @@
 import XCTest
 @testable import UtuvoOrbit
 
-/// Module switches: off by default, never start while locked, and a locked
-/// request goes to the paywall instead of being saved. Uses a throwaway
-/// defaults suite; the clothesline is never started (no monitors/hotkeys).
+/// Module switches: off by default, and the user's choice is always honoured
+/// — Orbit is free, so there is no purchase, trial or entitlement that could
+/// suspend a module.
+///
+/// Uses a throwaway defaults suite. **These tests start the file shelf**, so
+/// they are not part of the daytime filtered run.
 @MainActor
 final class OrbitModulesTests: XCTestCase {
     private var suiteName = ""
@@ -30,48 +33,29 @@ final class OrbitModulesTests: XCTestCase {
         XCTAssertFalse(modules.clothesline.isRunning)
     }
 
-    func testLockedRequestOpensPaywallAndIsNotSaved() {
+    func testSwitchingOnIsSavedAndStarted() {
         let modules = OrbitModules(defaults: defaults, language: "en", libraryRoot: root)
-        var locked = 0
-        modules.isAllowed = { false }
-        modules.onLocked = { locked += 1 }
         modules.setEnabled(.shelf, true)
-        XCTAssertEqual(locked, 1)
-        XCTAssertFalse(modules.shelfEnabled)
-        XCTAssertFalse(defaults.bool(forKey: OrbitModules.enabledKey(.shelf)))
-        XCTAssertFalse(modules.shelf.isRunning)
+        XCTAssertTrue(modules.shelfEnabled)
+        XCTAssertTrue(defaults.bool(forKey: OrbitModules.enabledKey(.shelf)))
+        XCTAssertTrue(modules.shelf.isRunning)
     }
 
-    func testShelfFollowsSwitchAndEntitlement() {
+    func testShelfFollowsTheSwitchOnly() {
         let modules = OrbitModules(defaults: defaults, language: "en", libraryRoot: root)
-        var allowed = true
-        modules.isAllowed = { allowed }
         modules.setEnabled(.shelf, true)
-        XCTAssertTrue(modules.shelf.isRunning)
-        XCTAssertTrue(defaults.bool(forKey: OrbitModules.enabledKey(.shelf)))
-
-        allowed = false          // trial ran out
-        modules.apply()
-        XCTAssertFalse(modules.shelf.isRunning)
-        XCTAssertTrue(modules.shelfEnabled, "the user's choice survives a lock")
-
-        allowed = true           // unlocked
-        modules.apply()
         XCTAssertTrue(modules.shelf.isRunning)
 
         modules.setEnabled(.shelf, false)
         XCTAssertFalse(modules.shelf.isRunning)
         XCTAssertFalse(defaults.bool(forKey: OrbitModules.enabledKey(.shelf)))
+        XCTAssertFalse(modules.shelfEnabled)
     }
 
     func testDropUserGetsShelfOnceAndCanTurnItOff() {
         let modules = OrbitModules(defaults: defaults, language: "en", libraryRoot: root)
-        modules.isAllowed = { false }            // still locked: saved, not started
         modules.adoptDropUser()
         XCTAssertTrue(modules.shelfEnabled)
-        XCTAssertFalse(modules.shelf.isRunning)
-        modules.isAllowed = { true }
-        modules.apply()
         XCTAssertTrue(modules.shelf.isRunning)
         modules.setEnabled(.shelf, false)
         modules.adoptDropUser()                  // second launch: must not flip it back on

@@ -10,13 +10,18 @@ final class OrbitSettingsWindowController {
     private let modules: OrbitModules
     private let preferences: OrbitPreferencesModel
     private let updates: OrbitUpdateModel
-    private let loginItem = LoginItemModel()
+    private let loginItem: LoginItemModel
+    private let onOpenHelp: () -> Void
     private var appearanceSubscription: AnyCancellable?
 
-    init(modules: OrbitModules, preferences: OrbitPreferencesModel, updates: OrbitUpdateModel) {
+    init(modules: OrbitModules, preferences: OrbitPreferencesModel, updates: OrbitUpdateModel,
+         loginItem: LoginItemModel = LoginItemModel(),
+         onOpenHelp: @escaping () -> Void = {}) {
         self.modules = modules
         self.preferences = preferences
         self.updates = updates
+        self.loginItem = loginItem
+        self.onOpenHelp = onOpenHelp
         appearanceSubscription = preferences.$values.sink { [weak self] _ in self?.syncWindow() }
     }
 
@@ -24,7 +29,8 @@ final class OrbitSettingsWindowController {
         loginItem.refresh()
         if window == nil {
             let view = OrbitSettingsView(modules: modules, clothesline: modules.clothesline.settings,
-                                         preferences: preferences, loginItem: loginItem, updates: updates)
+                                         preferences: preferences, loginItem: loginItem, updates: updates,
+                                         onOpenHelp: onOpenHelp)
             let controller = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: controller)
             window.styleMask = [.titled, .closable, .miniaturizable]
@@ -46,13 +52,16 @@ final class OrbitSettingsWindowController {
 
 struct OrbitSettingsView: View {
     enum Page: String, CaseIterable, Identifiable {
-        case general, modules, updates
+        case general, modules, updates, help
         var id: Self { self }
         var title: String {
-            switch self { case .general: "一般"; case .modules: "模組"; case .updates: "更新" }
+            switch self { case .general: "一般"; case .modules: "模組"; case .updates: "更新"; case .help: "說明" }
         }
         var symbol: String {
-            switch self { case .general: "slider.horizontal.3"; case .modules: "square.stack.3d.up"; case .updates: "arrow.down.circle" }
+            switch self {
+            case .general: "slider.horizontal.3"; case .modules: "square.stack.3d.up"
+            case .updates: "arrow.down.circle"; case .help: "questionmark.circle"
+            }
         }
     }
 
@@ -61,6 +70,9 @@ struct OrbitSettingsView: View {
     @ObservedObject var preferences: OrbitPreferencesModel
     @ObservedObject var loginItem: LoginItemModel
     @ObservedObject var updates: OrbitUpdateModel
+    /// Opens the offline guide. The Settings page shows the same text the
+    /// help window does, so there is one copy of the words.
+    var onOpenHelp: () -> Void = {}
     @State var page: Page = .general
     var preview = false
 
@@ -92,6 +104,7 @@ struct OrbitSettingsView: View {
                     case .general: general
                     case .modules: moduleSettings
                     case .updates: updateSettings
+                    case .help: helpContent
                     }
                 }
                 .padding(.horizontal, 28).padding(.top, 2).padding(.bottom, 24)
@@ -257,6 +270,19 @@ struct OrbitSettingsView: View {
 
     private func binding(_ kind: OrbitModules.Kind) -> Binding<Bool> {
         Binding(get: { modules.isEnabled(kind) }, set: { modules.setEnabled(kind, $0) })
+    }
+
+    /// The guide, inline. It is exactly the content the help window shows —
+    /// one copy of the words, two ways to read it.
+    private var helpContent: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            OrbitHelpBody(language: preferences.values.language) { url in
+                // Only ever reached from an explicit press on the link row.
+                NSWorkspace.shared.open(url)
+            }
+            Button(l("另開視窗")) { onOpenHelp() }
+                .controlSize(.small)
+        }
     }
 
     private func sectionHeading(_ title: String, detail: String) -> some View {

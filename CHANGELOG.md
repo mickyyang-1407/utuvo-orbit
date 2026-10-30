@@ -1,5 +1,44 @@
 # Changelog
 
+## 1.0.0 (19) — local full-App release candidate (not released)
+
+- Offline English/Traditional Chinese help across Settings, the workbench, menus and Command-?; app-menu labels follow the selected language.
+- Cancelling queued screenshot work prevents its backend from starting; immediate retries preserve the new request.
+- Release packaging refuses existing artifacts and can preserve a prepared update ZIP byte-for-byte. Version-default checks keep Direct and MAS metadata aligned.
+- Full-App lifecycle, rendered UI, repeated native capture, performance and final notarized installer acceptance are still pending. Stable downloads and the signed update feed remain unchanged.
+
+## 0.12.1 (18) — local native-capture candidate
+
+- Replaces the failing selected-content screenshot backend with one complete native screen frame, then stops capture before returning the image. No audio, microphone capture or recording file is created.
+- Adds a separate frame deadline and protects cancellation, teardown, duplicate callbacks and retries.
+- Adds an isolated Debug verification entry with fixture-only selection and fake clipboard receipts; ordinary Release excludes it.
+- Direct/MAS Release builds, four fake-driver lifecycle tests and five screenshot-model tests pass; independent Gemini review passes. On macOS 27 the actual product backend captured the designated generated Card through macOS per-window sharing confirmation: 1240×864 native input, 1120×724 crop, opaque redaction, PNG/OCR and pixel-identical image/File Tools copies passed. App and system-picker cancellation restored controls. This fixture acceptance does not cover display capture or automated Show All Windows selection; the latter became unreliable in the UI automation and was stopped without changing system permissions. Stable downloads, update feed and App Store Connect are unchanged.
+
+
+## 0.12.0 (17) — local candidate, GUI acceptance pending
+
+- Adds per-library JSON backups and previewed merge imports for Notes, Snippets and Quicklinks, preserving text, IDs, pins, dates, keywords and Recently Deleted.
+- Refuses conflicts, stale previews, unsaved drafts, damaged libraries and merged limits; identical reimports make no copies or writes.
+- Uses private unique exports, bounded regular-file reads and atomic private library writes with a pre-commit failure seam.
+- Keeps every feature free and MIT licensed. GUI and native screenshot acceptance remain deferred to the nightly session; no stable binary/feed or App Store update.
+
+## 0.11.0 (16) — local candidate, GUI acceptance pending
+
+- Makes both distribution targets fully free: removes StoreKit trial/purchase/paywall gates and purchase/restore menus. Existing MIT licensing continues; the source export includes the Mac App Store target.
+- Adds saved Web Quicklinks with fixed HTTP(S) destinations and optional `{query}` searches; terms are encoded once and links open only on request.
+- Adds private plain-text Snippets with date/time and named fields, one-pass expansion, autosave/draft protection, and explicit Copy / Text / Notes handoffs.
+- Adds streaming SHA-256 / SHA-512 / compatibility MD5 checksums for explicitly selected files, expected-checksum checks and two-file hash comparison.
+- Integrates all three pages and saved items into action search. No new dependency, background scan, automatic typing or global shortcut.
+- Daytime verification remains isolated tests and builds. Actual GUI and native capture acceptance are deferred to the existing nightly schedule; this candidate is not published and does not change the production feed.
+
+## 0.10.0 (15) — local candidate, GUI acceptance pending
+
+- Adds calculator/history and dimensional unit conversion with bounded parsing and explicit errors.
+- Adds offline world-clock favorites, date preview, DST-aware offsets and date rollover.
+- Adds private quick notes with autosave, search, pins, recoverable trash, Markdown export and unsaved-draft protection.
+- Integrates all three tools into the workbench/action search; makes the sidebar scroll.
+- Daytime checks are isolated tests and builds only. GUI and native screenshot acceptance run at night at the user’s request. No public release or feed update for this build.
+
 ## 0.9.1 (14) — engineering prerelease
 
 - Configures the production Sparkle public key and HTTPS feed; signs and verifies update archives and appcasts with the private key kept in Keychain.

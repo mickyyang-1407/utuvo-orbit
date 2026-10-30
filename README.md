@@ -8,6 +8,10 @@
 
 **macOS 14+ · Apple Silicon download · Native SwiftUI + AppKit · MIT**
 
+**Free and open source.** Starting with the 0.11 source candidate, every feature is available without purchase, trial activation or an account in both distribution targets. The MIT source includes the workbench, optional modules and Mac App Store build configuration. The candidate adds calculator/conversion, world clock, notes, Quicklinks, Snippets and file integrity; Targeted isolated English/Traditional Chinese and light/dark GUI paths have passed. Stable downloads remain separately versioned.
+
+The **0.12 source candidate** adds portable JSON backups and previewed merge imports for Notes, Snippets and Quicklinks, with conflict/draft protection and no cloud service. See [library backups](docs/LIBRARY-BACKUPS.md). Isolated library import/export, conflict protection and cross-session readback have passed.
+
 ## A quieter menu bar. A useful click.
 
 Orbit combines three everyday signals into one small icon. On a MacBook, its outer arc shows battery level. On a desktop Mac, it can show CPU activity. Network state sits in the middle; audio level lives in the dots below.
@@ -31,7 +35,9 @@ Click once to change volume, choose an output device, keep your Mac awake, check
 - **Native materials.** Liquid Glass controls on macOS 26+, a material fallback on older macOS, and explicit Light, Dark or System appearance.
 - **Local by design.** No account, analytics or ads. Personal data stays on your Mac. Unknown readings remain unknown.
 
-The working tree also contains a **0.9.1 engineering prerelease** with a sidebar workbench, context modes, a searchable action panel, opt-in reminders and clipboard history, text/PDF/color/QR tools, plus audio scenes, countdown/Pomodoro, file tools and screenshot import/markup/OCR/export. The native screenshot picker is not accepted on the test Mac; macOS screenshot shortcuts followed by import are the validated path. It includes the refreshed settings, opt-in launch at login, and Sparkle integration from 0.6. The production key is configured, and the real updater passed HTTPS background-download, signature-rejection and install/relaunch acceptance in an isolated Orbit bundle. The stable download linked below remains 0.4.2; the [0.9.1 candidate](https://github.com/mickyyang-1407/utuvo-orbit/releases/tag/v0.9.1-rc.1) retains the native-capture limitation. See [quick tools](docs/TOOLS.md), [screenshots](docs/TOOLS-SCREENSHOTS.md) and [software updates](docs/UPDATING.md).
+The current source candidate is **1.0.0 (19)**: fully free under MIT, with calculator/conversion, world clocks, Notes, Snippets, Quicklinks, checksums and per-library backup/import. Earlier 0.12.1 native single-frame capture validation obtained the selected generated test window through macOS per-window sharing confirmation, then passed crop/redaction, PNG/OCR and pixel-identical copy readback on macOS 27. This acceptance is scoped to that window fixture; display capture and automated “Show All Windows” selection are not claimed accepted. See [portable library backups](docs/LIBRARY-BACKUPS.md).
+
+The published engineering prerelease remains **0.9.1** with a sidebar workbench, context modes, a searchable action panel, opt-in reminders and clipboard history, text/PDF/color/QR tools, plus audio scenes, countdown/Pomodoro, file tools and screenshot import/markup/OCR/export. The native screenshot picker is not accepted on the test Mac; macOS screenshot shortcuts followed by import are the validated path. It includes the refreshed settings, opt-in launch at login, and Sparkle integration from 0.6. The production key is configured, and the real updater passed HTTPS background-download, signature-rejection and install/relaunch acceptance in an isolated Orbit bundle. The stable download linked below remains 0.4.2; the [0.9.1 candidate](https://github.com/mickyyang-1407/utuvo-orbit/releases/tag/v0.9.1-rc.1) retains the native-capture limitation. See [quick tools](docs/TOOLS.md), [screenshots](docs/TOOLS-SCREENSHOTS.md) and [software updates](docs/UPDATING.md).
 
 ## Read the glyph
 

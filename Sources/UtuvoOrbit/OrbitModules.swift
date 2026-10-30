@@ -4,9 +4,10 @@ import ClotheslineKit
 import ShelfKit
 
 /// Owns Orbit's optional modules. Each one is OFF by default and only exists
-/// (window, observers, hotkey, folder watch) while it is switched on AND
-/// Orbit is unlocked or in its trial. Nothing here runs in the isolated
-/// diagnose / gallery / fixture modes.
+/// (window, observers, hotkey, folder watch) while the user has switched it
+/// on. There is no purchase, trial or entitlement any more: nothing here
+/// suspends a module. Nothing runs in the isolated diagnose / gallery /
+/// fixture modes.
 @MainActor
 final class OrbitModules: ObservableObject {
     enum Kind: String, CaseIterable { case shelf, clothesline }
@@ -20,11 +21,6 @@ final class OrbitModules: ObservableObject {
     @Published private(set) var clotheslineEnabled: Bool
     @Published private(set) var clotheslineError: String?
 
-    /// App Store edition: true while the trial runs or after the unlock.
-    var isAllowed: () -> Bool = { true }
-    /// Called when a locked module is asked for (opens the paywall).
-    var onLocked: () -> Void = {}
-
     init(defaults: UserDefaults, language: String, libraryRoot: URL) {
         self.defaults = defaults
         shelfEnabled = defaults.bool(forKey: Self.enabledKey(.shelf))
@@ -32,8 +28,6 @@ final class OrbitModules: ObservableObject {
         shelf = ShelfModule(defaults: defaults, language: language)
         clothesline = ClotheslineModule(settings: ClotheslineSettings(defaults: defaults),
                                         libraryRoot: libraryRoot, language: language)
-        shelf.dropGate = { [weak self] in self?.isAllowed() ?? false }
-        shelf.onGatedDrop = { [weak self] in self?.onLocked() }
     }
 
     /// Default location of the clothesline's managed copies. Inside the
@@ -46,8 +40,7 @@ final class OrbitModules: ObservableObject {
     static let adoptedDropKey = "modules.adoptedDropUser"
 
     /// One time only: a UTUVO Drop user finds the file shelf already on.
-    /// Saved even while locked, so it appears as soon as access resolves;
-    /// if they later switch it off, it stays off.
+    /// If they later switch it off, it stays off.
     func adoptDropUser() {
         guard !defaults.bool(forKey: Self.adoptedDropKey) else { return }
         defaults.set(true, forKey: Self.adoptedDropKey)
@@ -61,7 +54,6 @@ final class OrbitModules: ObservableObject {
     }
 
     func setEnabled(_ kind: Kind, _ on: Bool) {
-        if on, !isAllowed() { onLocked(); return }
         defaults.set(on, forKey: Self.enabledKey(kind))
         switch kind {
         case .shelf: shelfEnabled = on
@@ -72,12 +64,10 @@ final class OrbitModules: ObservableObject {
         apply()
     }
 
-    /// Reconciles running modules with (enabled && allowed). Call after any
-    /// entitlement change.
+    /// Reconciles the running modules with what the user switched on.
     func apply() {
-        let allowed = isAllowed()
-        if shelfEnabled && allowed { shelf.start() } else { shelf.stop() }
-        if clotheslineEnabled && allowed {
+        if shelfEnabled { shelf.start() } else { shelf.stop() }
+        if clotheslineEnabled {
             do { try clothesline.start(); clotheslineError = nil }
             catch { clotheslineError = error.localizedDescription; clothesline.stop() }
         } else {

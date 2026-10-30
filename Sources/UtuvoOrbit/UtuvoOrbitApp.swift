@@ -3,35 +3,120 @@ import Combine
 import SwiftUI
 import OrbitCore
 import ShelfKit
+import ClotheslineKit
+#if DEBUG
+@preconcurrency import ScreenCaptureKit
+#endif
 
 @main
 struct UtuvoOrbitMain {
     @MainActor static func main() {
         let app = NSApplication.shared
-        installEditingMenu(app)
+        let menu = OrbitMainMenuController()
+        menu.install(in: app)
         let delegate = AppDelegate()
+        delegate.mainMenuController = menu
+        // The Help item needs a target that can open the guide, and the
+        // delegate is the only object that knows how.
+        menu.setHelpTarget(delegate)
         app.delegate = delegate
         app.setActivationPolicy(.accessory)
         withExtendedLifetime(delegate) { app.run() }
     }
+}
 
-    /// An accessory app still needs a responder-chain Edit menu for standard text shortcuts.
-    @MainActor private static func installEditingMenu(_ app: NSApplication) {
-        let c = ToolCopy(language: .system)
-        let menu = NSMenu()
-        let application = NSMenuItem(); let applicationMenu = NSMenu()
-        applicationMenu.addItem(withTitle: c("結束 UTUVO Orbit", "Quit UTUVO Orbit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        application.submenu = applicationMenu; menu.addItem(application)
-        let edit = NSMenuItem(); let editMenu = NSMenu(title: c("編輯", "Edit"))
-        for (title, selector, key, shift) in [
-            (c("復原", "Undo"), "undo:", "z", false), (c("重做", "Redo"), "redo:", "z", true),
-            (c("剪下", "Cut"), "cut:", "x", false), (c("複製", "Copy"), "copy:", "c", false),
-            (c("貼上", "Paste"), "paste:", "v", false), (c("全選", "Select All"), "selectAll:", "a", false)
-        ] {
-            let item = editMenu.addItem(withTitle: title, action: Selector(selector), keyEquivalent: key)
-            item.keyEquivalentModifierMask = shift ? [.command, .shift] : [.command]
+/// The shape of the app's main menu, with no AppKit types in it.
+///
+/// The menu is described as plain values so its structure — the standard
+/// responder-chain edit items, their key equivalents, and the app-local Help
+/// item — can be checked without a running application.
+struct OrbitMainMenuSpec {
+    struct Entry: Equatable {
+        let titleKey: String
+        /// The selector name, e.g. `undo:`.
+        let action: String
+        let keyEquivalent: String
+        /// Shift is spelled out separately: Redo is the only shifted item.
+        let shift: Bool
+    }
+    struct Menu: Equatable {
+        let id: String
+        /// Empty for the application menu, whose title is the brand name and
+        /// is therefore never translated.
+        let titleKey: String
+        let entries: [Entry]
+    }
+
+    static let application = "application"
+    static let edit = "edit"
+    static let help = "help"
+
+    static func menus() -> [Menu] {
+        [
+            Menu(id: application, titleKey: "", entries: [
+                Entry(titleKey: "orbit.menu.application.quit", action: "terminate:", keyEquivalent: "q", shift: false)
+            ]),
+            Menu(id: edit, titleKey: "orbit.menu.edit.title", entries: [
+                Entry(titleKey: "orbit.menu.edit.undo", action: "undo:", keyEquivalent: "z", shift: false),
+                Entry(titleKey: "orbit.menu.edit.redo", action: "redo:", keyEquivalent: "z", shift: true),
+                Entry(titleKey: "orbit.menu.edit.cut", action: "cut:", keyEquivalent: "x", shift: false),
+                Entry(titleKey: "orbit.menu.edit.copy", action: "copy:", keyEquivalent: "c", shift: false),
+                Entry(titleKey: "orbit.menu.edit.paste", action: "paste:", keyEquivalent: "v", shift: false),
+                Entry(titleKey: "orbit.menu.edit.selectAll", action: "selectAll:", keyEquivalent: "a", shift: false)
+            ]),
+            Menu(id: help, titleKey: "orbit.menu.help.title", entries: [
+                // "?" implies shift on the keyboard; AppKit adds it itself.
+                Entry(titleKey: "orbit.menu.help.item", action: "showOrbitHelp:", keyEquivalent: "?", shift: false)
+            ])
+        ]
+    }
+}
+
+/// Builds the app's main menu and keeps its titles in the app's language.
+///
+/// An accessory app shows no menu bar, but the main menu still carries the
+/// key equivalents (⌘Z, ⌘C, ⌘? …). A menu frozen in the system language
+/// reads in the wrong language and misleads about what the app does, so the
+/// titles are re-applied once the preferences are known and again on every
+/// language change.
+@MainActor
+final class OrbitMainMenuController {
+    private let menu = NSMenu()
+    private var localizedTitles: [(item: NSMenuItem, key: String)] = []
+    private var helpItem: NSMenuItem?
+
+    init() { build() }
+
+    func install(in app: NSApplication) { app.mainMenu = menu }
+
+    /// The Help item needs a target that can open the guide; the app
+    /// delegate is the only object that knows how.
+    func setHelpTarget(_ target: AnyObject?) { helpItem?.target = target }
+
+    /// Re-titles the menu in `language`.
+    func update(language: AppLanguage) {
+        let strings = OrbitStrings(language: language)
+        for entry in localizedTitles { entry.item.title = strings(entry.key) }
+    }
+
+    private func build() {
+        let strings = OrbitStrings(language: .system)
+        for menuSpec in OrbitMainMenuSpec.menus() {
+            let item = NSMenuItem()
+            item.title = menuSpec.titleKey.isEmpty ? "UTUVO Orbit" : strings(menuSpec.titleKey)
+            let submenu = NSMenu(title: item.title)
+            for entry in menuSpec.entries {
+                let sub = NSMenuItem(title: strings(entry.titleKey),
+                                     action: Selector(entry.action), keyEquivalent: entry.keyEquivalent)
+                sub.keyEquivalentModifierMask = entry.shift ? [.command, .shift] : [.command]
+                submenu.addItem(sub)
+                localizedTitles.append((sub, entry.titleKey))
+                if menuSpec.id == OrbitMainMenuSpec.help { helpItem = sub }
+            }
+            if !menuSpec.titleKey.isEmpty { localizedTitles.append((item, menuSpec.titleKey)) }
+            item.submenu = submenu
+            menu.addItem(item)
         }
-        edit.submenu = editMenu; menu.addItem(edit); app.mainMenu = menu
     }
 }
 
@@ -70,6 +155,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// Settings window that switches them on. `nil` in isolated modes.
     private var modules: OrbitModules?
     private var settingsWindow: OrbitSettingsWindowController?
+    /// Owned by `UtuvoOrbitMain`, which builds the menu before the delegate
+    /// exists. The delegate re-titles it once the preferences are known.
+    fileprivate var mainMenuController: OrbitMainMenuController?
+    /// The offline guide. One window, shared by the Settings page, the
+    /// menu-bar context menu and the workbench.
+    private var helpWindowController: OrbitHelpWindowController?
     private var updates: OrbitUpdateModel?
     private var toolsWindow: OrbitToolsWindowController?
     private var settingsPreviewDefaults: (UserDefaults, String)?
@@ -77,20 +168,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     private var updateVerification: OrbitUpdateVerification?
     #endif
     #if MAS
-    /// Mac App Store edition only: 7-day trial + one-time unlock. `nil` in
-    /// the isolated diagnose/gallery/snapshot modes, which never reach the
-    /// status item.
-    private var store: UTUVOStore?
-    private var paywall: OrbitPaywallWindowController?
-    /// The first resolved entitlement opens the paywall once if the panel is
-    /// locked — an LSUIElement app has no window to discover otherwise.
-    private var didResolveInitialAccess = false
-    /// Verified UTUVO Drop purchase carried over through the shared group
-    /// container (see `DropHandoff`). Read at launch and on Restore.
-    private var dropHandoff = DropHandoff.Result(dropWasUsed: false, dropUnlockVerified: false)
-    #if DEBUG
-    private var qaFullAccess = false
-    #endif
+    /// UTUVO Drop adoption marker read from the shared group container (see
+    /// `DropHandoff`). Read once, in a normal launch only. It carries no
+    /// entitlement: Orbit is free.
+    private var dropHandoff = DropHandoff.Result(dropWasUsed: false)
     #endif
 
     /// The anchor exists only while the popover is open; the next open
@@ -99,11 +180,38 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         anchorHost.hide()
     }
 
+    /// True while this app runs as the host of a unit test bundle. The Mac App
+    /// Store tests are hosted by the app itself, so without this a hosted
+    /// test would read the real Drop marker, adopt it, switch the file shelf
+    /// on for good and touch the live preferences.
+    ///
+    /// Same detection the old store setup used.
+    private static var isTestHost: Bool {
+        ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
+            || NSClassFromString("XCTestCase") != nil
+    }
+
     func applicationDidFinishLaunching(_ notification: Notification) {
+        #if DEBUG && ORBIT_COMPLETE_APP_QA
+        guard let completeAppQA = try? CompleteAppQARoot.open(bundleIdentifier: Bundle.main.bundleIdentifier,
+                                                             info: Bundle.main.infoDictionary ?? [:]) else {
+            NSApp.terminate(nil); return
+        }
+        let completeAppQAEnabled = true
+        #else
+        let completeAppQAEnabled = false
+        #endif
+        #if DEBUG && ORBIT_NATIVE_CAPTURE_QA && !ORBIT_COMPLETE_APP_QA
+        launchNativeCaptureQA()
+        #else
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let args: [String] = []
+#else
+        let args = CommandLine.arguments
+#endif
         #if ORBIT_UPDATE_VERIFICATION && !MAS
         let verification = OrbitUpdateVerification(); updateVerification = verification; verification.start(); return
         #endif
-        let args = CommandLine.arguments
         if args.contains("--tools-preview") {
             showToolsPreview(args: args)
             return
@@ -121,8 +229,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         let diagnose = args.contains("--diagnose")
         let gallery = args.contains("--gallery")
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let fixtureName: String? = "desktop"
+#else
         let fixtureName = Self.argValue(args, after: "--fixture")
-        let isolated = diagnose || gallery || fixtureName != nil
+#endif
+        // A hosted unit test is isolated as well. The check comes before any
+        // live setup, so a hosted test reads no marker, no real preferences
+        // and opens no shelf window.
+        let isolated = completeAppQAEnabled || diagnose || gallery || fixtureName != nil || Self.isTestHost
 
         // `FixtureFactory.resolve` is the ONE place that maps a fixture NAME
         // to its (snapshot, preferences, peripherals) — previously only
@@ -130,6 +245,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // "percent-center"/"classic" this way, so `--fixture percent-center`
         // from the CLI silently launched with default preferences and the
         // real menubar ignored the name entirely.
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        preferencesBackend = completeAppQA.makePreferencesBackend()
+#else
         if isolated, let fixtureName {
             let resolved = FixtureFactory.resolve(fixtureName)
             preferencesBackend = FakePreferencesBackend(initial: resolved.preferences, legacy: nil)
@@ -138,11 +256,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } else {
             preferencesBackend = LivePreferencesBackend()
         }
+#endif
         preferencesModel = OrbitPreferencesModel(backend: preferencesBackend)
         // Preview language overrides are confined to the fake preferences backend.
         if isolated, let raw = Self.argValue(args, after: "--language"), let language = AppLanguage(rawValue: raw) {
             preferencesModel.update { $0.language = language }
         }
+        // The main menu's titles follow the app language. This fires once
+        // with the language the preferences actually hold — including a
+        // preview override — and again on every later change.
+        preferencesModel.$values.map(\.language).removeDuplicates()
+            .sink { [weak self] language in self?.mainMenuController?.update(language: language) }
+            .store(in: &cancellables)
+        helpWindowController = OrbitHelpWindowController(preferences: preferencesModel)
 
         if let fixtureName {
             let resolved = FixtureFactory.resolve(fixtureName)
@@ -158,7 +284,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                     networkBackend: networkBackend,
                                     audioBackend: audioBackend,
                                     peripheralBackend: peripheralBackend)
-        } else if gallery {
+        } else if gallery || Self.isTestHost {
             let fixture = StatusSnapshot.fixture("desktop")
             let backends = FixtureFactory.makeBackends(for: fixture)
             audioBackend = backends.audio
@@ -225,18 +351,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
            NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
             NSApp.terminate(nil); return
         }
-        if !isolated {
-        let modules = OrbitModules(defaults: .standard, language: preferencesModel.values.language.rawValue,
-                                   libraryRoot: OrbitModules.defaultLibraryRoot())
+        if !isolated || completeAppQAEnabled {
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let qaRoot = completeAppQA
+        let defaults = qaRoot.defaults
+        let libraryRoot = qaRoot.storeURL(.clothesline)
+        defaults.set(false, forKey: OrbitModules.enabledKey(.shelf))
+        defaults.set(false, forKey: OrbitModules.enabledKey(.clothesline))
+#else
+        let defaults = UserDefaults.standard
+        let libraryRoot = OrbitModules.defaultLibraryRoot()
+#endif
+        let modules = OrbitModules(defaults: defaults, language: preferencesModel.values.language.rawValue,
+                                   libraryRoot: libraryRoot)
         self.modules = modules
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let updates = OrbitUpdateModel(distribution: .unconfigured)
+#else
         let updates = OrbitUpdateModel.live()
+#endif
         self.updates = updates
         updates.start()
-        settingsWindow = OrbitSettingsWindowController(modules: modules, preferences: preferencesModel, updates: updates)
-        let scenes = AudioScenesModel(defaults: .standard, routing: LiveAudioSceneRouting(), audio: audioBackend, awake: awakeBackend)
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let loginItem = LoginItemModel.preview()
+#else
+        let loginItem = LoginItemModel()
+#endif
+        settingsWindow = OrbitSettingsWindowController(modules: modules, preferences: preferencesModel, updates: updates,
+                                                      loginItem: loginItem,
+                                                      onOpenHelp: { [weak self] in self?.openHelp() })
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let sceneRouting: any AudioSceneRouting = PreviewSceneRouting()
+#else
+        let sceneRouting: any AudioSceneRouting = LiveAudioSceneRouting()
+#endif
+        let scenes = AudioScenesModel(defaults: defaults, routing: sceneRouting, audio: audioBackend, awake: awakeBackend)
         scenes.onReadback = { [weak self] in self?.monitor.refreshAudioOnly() }
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let timerAwake: any AwakeBackend = FakeAwakeBackend()
+        let timer = OrbitTimerModel(awake: timerAwake, defaults: defaults,
+                                    notifications: PreviewToolNotifications())
+        var workbenchOverrides: OrbitWorkbenchOverrides?
+        var screenshots: ScreenshotToolsModel?
+        let policy = CompleteAppQACapturePolicy()
+        let excluded = Set(NSWorkspace.shared.runningApplications.compactMap { application -> String? in
+            guard let identifier = application.bundleIdentifier,
+                  identifier != CompleteAppQAPolicy.cardBundleID else { return nil }
+            return identifier
+        })
+        let capture = SystemScreenshotCapture(excludedBundleIDs: excluded,
+                                              filterTransform: { filter, mode in policy.transform(filter, mode: mode) })
+        screenshots = ScreenshotToolsModel(root: qaRoot.storeURL(.screenshots), capture: capture,
+                                           copyImage: { image in
+                                               do { _ = try qaRoot.writeImageReceipt(image) }
+                                               catch { fputs("orbit QA image receipt failed\n", stderr) }
+                                           },
+                                           copyText: { text in
+                                               do { _ = try qaRoot.writeTextReceipt(text) }
+                                               catch { fputs("orbit QA text receipt failed\n", stderr) }
+                                           })
+        let qaClipboard = PreviewClipboardAccess()
+        workbenchOverrides = OrbitWorkbenchOverrides(
+            storageRoot: qaRoot.dataURL,
+            clipboard: qaClipboard,
+            awake: FakeAwakeBackend(),
+            modeApplicationOpening: PreviewModeApplicationOpening(),
+            notifications: PreviewToolNotifications(),
+            actionShortcut: PreviewActionShortcut(),
+            quickLinkOpening: PreviewQuickLinkOpener(),
+            copyText: { text in
+                qaClipboard.write(ClipboardEntry(text: text))
+                do { _ = try qaRoot.writeTextReceipt(text) }
+                catch { fputs("orbit QA text receipt failed\n", stderr) }
+            })
+#else
+        let timer = OrbitTimerModel(awake: makeLiveAwakeBackend(), defaults: defaults)
+        let workbenchOverrides: OrbitWorkbenchOverrides? = nil
+        let screenshots: ScreenshotToolsModel? = nil
+#endif
         let tools = OrbitToolsWindowController(preferences: preferencesModel, scenes: scenes,
-                                              timer: OrbitTimerModel(awake: makeLiveAwakeBackend(), defaults: .standard), defaults: .standard)
+                                              timer: timer, screenshots: screenshots, defaults: defaults,
+                                              workbenchOverrides: workbenchOverrides,
+                                              onOpenHelp: { [weak self] in self?.openHelp() })
         tools.files.shelfFiles = { [weak modules] in modules?.shelf.fileURLs ?? [] }
         tools.screenshots.canSendToClothesline = { [weak modules] in modules?.clothesline.isRunning ?? false }
         tools.screenshots.onSendToClothesline = { [weak modules] url in modules?.clothesline.addCopy(url) ?? false }
@@ -247,12 +443,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             .store(in: &cancellables)
         modules.clothesline.suppressReveal = { [weak self] in self?.popover.isShown ?? false }
         #if MAS
-        tools.setAllowed(false)
-        startStore(args: args)
-        modules.isAllowed = { [weak self] in self?.panelAllowed ?? false }
-        modules.onLocked = { [weak self] in self?.paywall?.show() }
+        // Orbit is free: no purchase, no trial, no entitlement and no
+        // account, so nothing is gated. The only thing read from the shared
+        // group container is the legacy UTUVO Drop adoption marker.
+        if !completeAppQAEnabled { dropHandoff = DropHandoff.read() }
         // Someone who used UTUVO Drop gets its file shelf switched on once.
-        if dropHandoff.dropWasUsed { modules.adoptDropUser() }
+        if !completeAppQAEnabled, dropHandoff.dropWasUsed { modules.adoptDropUser() }
         #endif
         preferencesModel.$values.map(\.language).removeDuplicates().dropFirst()
             .sink { [weak modules] language in modules?.setLanguage(language.rawValue) }
@@ -293,7 +489,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                                                                 networkBackend: networkBackend,
                                                                                 systemBackend: systemBackend,
                                                                                 awakeBackend: awakeBackend,
-                                                                                preview: fixtureName != nil,
+                                                                                preview: fixtureName != nil && !completeAppQAEnabled,
                                                                                 initialTab: Self.initialPanelTab(args),
                                                                                 onPinChanged: { [weak self] pinned in
                                                                                     guard let self else { return }
@@ -352,6 +548,42 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             DispatchQueue.main.asyncAfter(deadline: .now() + 0.7) { [weak self] in self?.showPopover() }
         }
         installEscapeMonitor()
+        #endif
+    }
+
+    #if DEBUG && ORBIT_NATIVE_CAPTURE_QA
+    private func launchNativeCaptureQA() {
+        guard Bundle.main.bundleIdentifier == "com.utuvo.orbit.captureqa20261030" else {
+            NSApp.terminate(nil); return
+        }
+        guard let output = Self.prepareNativeCaptureQAOutput() else {
+            NSApp.terminate(nil); return
+        }
+        showToolsPreview(args: ["--tools-tab", "screenshots", "--tools-qa-file-actions"], nativeCaptureQAOutput: output)
+    }
+    #endif
+
+    func applicationShouldTerminate(_ sender: NSApplication) -> NSApplication.TerminateReply {
+        guard let toolsWindow else { return .terminateNow }
+        // Notes keep their own protection; snippets add a second unsaved draft.
+        let notesSaved = toolsWindow.workbench.notes.flush()
+        let snippetsSaved = toolsWindow.workbench.snippets.flush()
+        guard !notesSaved || !snippetsSaved else { return .terminateNow }
+        let c = ToolCopy(language: preferencesModel?.values.language ?? .system)
+        let snippetsFailed = !snippetsSaved
+        let alert = NSAlert()
+        alert.messageText = snippetsFailed ? c("片段尚未儲存", "Your snippet could not be saved") : c("筆記尚未儲存", "Your note could not be saved")
+        let detail = snippetsFailed ? toolsWindow.workbench.snippets.error : toolsWindow.workbench.notes.error
+        alert.informativeText = detail ?? c("請重試，或選擇不儲存就離開。", "Retry saving, or choose to quit without saving.")
+        alert.addButton(withTitle: c("繼續編輯", "Keep Editing"))
+        alert.addButton(withTitle: c("不儲存並離開", "Quit Without Saving"))
+        if alert.runModal() == .alertSecondButtonReturn {
+            if !notesSaved { toolsWindow.workbench.notes.discardDraft() }
+            if !snippetsSaved { toolsWindow.workbench.snippets.discardDraft() }
+            return .terminateNow
+        }
+        toolsWindow.show(page: snippetsFailed ? .snippets : .notes)
+        return .terminateCancel
     }
 
     func applicationWillTerminate(_ notification: Notification) {
@@ -472,6 +704,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             actions.target = self; menu.addItem(actions)
             let screenshot = NSMenuItem(title: l("截圖與編修…"), action: #selector(openScreenshotTools), keyEquivalent: "")
             screenshot.target = self; menu.addItem(screenshot)
+            let help = NSMenuItem(title: l("使用說明…"), action: #selector(showOrbitHelp(_:)), keyEquivalent: "")
+            help.target = self; menu.addItem(help)
             if let updates {
                 let update = NSMenuItem(title: l(updates.distribution == .appStore ? "在 App Store 更新" : "檢查更新…"),
                                         action: #selector(checkForUpdates), keyEquivalent: "")
@@ -493,18 +727,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                 }
             }
             menu.addItem(.separator())
-            #if MAS
-            let titles = OrbitMAS.menuTitles(languageIdentifier: l.identifier)
-            if dropHandoff.dropUnlockVerified {
-                let unlocked = NSMenuItem(title: OrbitMAS.unlockedByDropTitle(languageIdentifier: l.identifier), action: nil, keyEquivalent: "")
-                unlocked.isEnabled = false; menu.addItem(unlocked)
-            } else {
-                let purchase = NSMenuItem(title: titles.purchase, action: #selector(openPurchase), keyEquivalent: "")
-                purchase.target = self; menu.addItem(purchase)
-            }
-            let restore = NSMenuItem(title: titles.restore, action: #selector(restorePurchases), keyEquivalent: "")
-            restore.target = self; menu.addItem(restore); menu.addItem(.separator())
-            #endif
             let quit = NSMenuItem(title: l("結束 UTUVO Orbit"), action: #selector(quitApp), keyEquivalent: "q")
             quit.target = self; menu.addItem(quit)
             statusItem?.menu = menu; statusItem?.button?.performClick(nil); statusItem?.menu = nil
@@ -516,19 +738,20 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if popover.isShown { popover.performClose(nil) }
         settingsWindow?.show()
     }
+    /// Opens the offline guide. Reached from the menu-bar context menu, from
+    /// the workbench, from the Settings help page and from ⌘? in the main
+    /// menu — one window, one copy of the words.
+    @objc private func showOrbitHelp(_ sender: Any?) { openHelp() }
+    private func openHelp() {
+        helpWindowController?.show()
+    }
     @objc private func openToolsMenu() { openTools() }
     @objc private func openActionsMenu() {
-        #if MAS
-        guard panelAllowed else { paywall?.show(); return }
-        #endif
         toolsWindow?.showActions()
     }
     @objc private func openScreenshotTools() { openTools(page: .screenshots) }
     private func openTools(page: OrbitToolsNavigation.Page = .modes, files: [URL]? = nil) {
         if popover.isShown { popover.performClose(nil) }
-        #if MAS
-        guard panelAllowed else { paywall?.show(); return }
-        #endif
         toolsWindow?.show(page: page, files: files)
     }
     @objc private func checkForUpdates() {
@@ -540,13 +763,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func quitApp() { NSApp.terminate(nil) }
     private func showPopover() {
         guard let button = statusItem?.button else { return }
-        #if MAS
-        // Panel content is gated; the menu-bar glyph itself is not.
-        guard panelAllowed else { paywall?.show(); return }
-        // A long-running menu bar session must notice the trial running
-        // out; the access observer swaps to the paywall if it has.
-        if let store { Task { await store.refresh() } }
-        #endif
         NSApp.activate(ignoringOtherApps: true)
         // `isPinned` (mirrored from the panel's in-memory pin state via
         // `onPinChanged`), NOT `preferencesModel.values.pin` — pin is
@@ -570,73 +786,6 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         popover.contentViewController?.view.window?.makeKey()
     }
-
-    #if MAS
-    private func startStore(args: [String]) {
-        // The MAS unit tests are hosted in this app and drive StoreKit
-        // through their own `SKTestSession`. A store started here first
-        // pins the whole process's StoreKit connection to the live sandbox
-        // environment, so the host stays out of StoreKit entirely.
-        if ProcessInfo.processInfo.environment["XCTestConfigurationFilePath"] != nil
-            || NSClassFromString("XCTestCase") != nil { return }
-        dropHandoff = DropHandoff.read()
-        let store = UTUVOStore(trialID: OrbitMAS.trialProductID, unlockID: OrbitMAS.unlockProductID)
-        self.store = store
-        paywall = OrbitPaywallWindowController(store: store)
-        #if DEBUG
-        qaFullAccess = args.contains(OrbitMAS.qaFullAccessArgument)
-        #endif
-        store.start()
-        // `receive(on:)` hops a run-loop turn, so `store.access` already
-        // holds the new value when the handler reads it.
-        store.$access.removeDuplicates().receive(on: RunLoop.main)
-            .sink { [weak self] access in self?.storeAccessChanged(access) }
-            .store(in: &cancellables)
-    }
-
-    private var panelAllowed: Bool {
-        #if DEBUG
-        if qaFullAccess { return true }
-        #endif
-        return store.map { OrbitMAS.allowsPanel($0.access, dropUnlock: dropHandoff.dropUnlockVerified) } ?? false
-    }
-
-    private func storeAccessChanged(_ access: UTUVOStore.Access) {
-        guard access != .loading else { return }
-        modules?.apply()
-        toolsWindow?.setAllowed(panelAllowed)
-        if !didResolveInitialAccess {
-            didResolveInitialAccess = true
-            if !panelAllowed { paywall?.show() }
-            return
-        }
-        if OrbitMAS.allowsPanel(access, dropUnlock: dropHandoff.dropUnlockVerified) {
-            // Trial started / unlock bought from the paywall: go straight
-            // to the panel the user was trying to open.
-            if paywall?.isVisible == true { paywall?.close(); showPopover() }
-        } else if !panelAllowed, popover.isShown {
-            popover.performClose(nil)
-            paywall?.show()
-        }
-    }
-
-    @objc private func openPurchase() { paywall?.show() }
-
-    @objc private func restorePurchases() {
-        guard let store else { return }
-        Task { @MainActor [weak self] in
-            await store.restore()
-            guard let self else { return }
-            // Drop may have been updated since launch.
-            self.dropHandoff = DropHandoff.read()
-            self.modules?.apply()
-            if !self.panelAllowed { self.paywall?.show(); return }
-            // The access observer may already have swapped to the panel.
-            self.paywall?.close()
-            if !self.popover.isShown { self.showPopover() }
-        }
-    }
-    #endif
 
     private func handleScreenChange() {
         let buttonRect: NSRect? = statusItem?.button.flatMap { Self.screenRect(of: $0) }
@@ -696,10 +845,14 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// hung on `NSApp.terminate` in testing — a real "capture the settings
     /// sheet" export would need to click the gear button and wait for the
     /// sheet's own lifecycle, not force one open synchronously.
-    private func showToolsPreview(args: [String]) {
+    private func showToolsPreview(args: [String], nativeCaptureQAOutput: URL? = nil) {
         let values = OrbitPreferencesValues(theme: args.contains("--light") ? .light : .dark,
                                             language: AppLanguage(rawValue: Self.argValue(args, after: "--language") ?? "en") ?? .english)
         let preferences = OrbitPreferencesModel(backend: FakePreferencesBackend(initial: values, legacy: nil))
+        // The preview runs in its own language; the menu and the guide follow
+        // it, so a QA capture never shows a mismatched mix.
+        mainMenuController?.update(language: preferences.values.language)
+        helpWindowController = OrbitHelpWindowController(preferences: preferences)
         let routing = PreviewSceneRouting()
         let scenes = AudioScenesModel(defaults: nil, routing: routing, audio: AudioBackendImpl(driver: routing.driver), awake: FakeAwakeBackend())
         let l = OrbitStrings(language: values.language)
@@ -710,18 +863,36 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         if args.contains("--pomodoro") { timer.pomodoro = true }
         #if DEBUG
         let allowFileActions = args.contains("--tools-qa-file-actions")
-        let screenshotCapture: any ScreenshotCapturing = args.contains("--tools-qa-capture") ? SystemScreenshotCapture() : PreviewScreenshotCapture()
+        let screenshotCapture: any ScreenshotCapturing
+        if nativeCaptureQAOutput != nil {
+            screenshotCapture = SystemScreenshotCapture(excludedBundleIDs: Self.nativeCaptureQAExcludedBundleIDs(),
+                                                        eligibleFilter: Self.isKnownNativeCaptureQACard)
+        }
+        else if args.contains("--tools-qa-capture") { screenshotCapture = SystemScreenshotCapture() }
+        else { screenshotCapture = PreviewScreenshotCapture() }
+        let copyImage: (CGImage) -> Void = { image in
+            guard let nativeCaptureQAOutput else { return }
+            try? ScreenshotEditing.writePNG(image, to: nativeCaptureQAOutput.appendingPathComponent("clipboard-image.png"))
+        }
+        let copyText: (String) -> Void = { text in
+            guard let nativeCaptureQAOutput else { return }
+            try? Data(text.utf8).write(to: nativeCaptureQAOutput.appendingPathComponent("clipboard-text.txt"), options: .atomic)
+        }
         #else
         let allowFileActions = false
         let screenshotCapture: any ScreenshotCapturing = PreviewScreenshotCapture()
+        let copyImage: (CGImage) -> Void = { _ in }
+        let copyText: (String) -> Void = { _ in }
         #endif
-        let screenshots = ScreenshotToolsModel(capture: screenshotCapture, preview: true, copyImage: { _ in }, copyText: { _ in })
+        let screenshots = ScreenshotToolsModel(capture: screenshotCapture, preview: true, copyImage: copyImage, copyText: copyText)
         screenshots.loadFixture()
         let tools = OrbitToolsWindowController(preferences: preferences, scenes: scenes, timer: timer, preview: true,
-                                              allowFileActionsInPreview: allowFileActions, screenshots: screenshots)
+                                              allowFileActionsInPreview: allowFileActions, screenshots: screenshots,
+                                              onOpenHelp: { [weak self] in self?.openHelp() })
         toolsWindow = tools
         tools.files.setFiles([URL(fileURLWithPath: "/fixture/cover.png"), URL(fileURLWithPath: "/fixture/notes.txt")])
-        tools.show(page: OrbitToolsNavigation.Page(rawValue: Self.argValue(args, after: "--tools-tab") ?? "modes") ?? .modes)
+        let initialPage = nativeCaptureQAOutput == nil ? (Self.argValue(args, after: "--tools-tab") ?? "modes") : "screenshots"
+        tools.show(page: OrbitToolsNavigation.Page(rawValue: initialPage) ?? .modes)
         if let seconds = Self.argValue(args, after: "--timer-seconds").flatMap(Double.init) { timer.start(seconds: seconds) }
         if let path = Self.argValue(args, after: "--snapshot"), let view = tools.window?.contentView {
             DispatchQueue.main.asyncAfter(deadline: .now() + 1) {
@@ -729,6 +900,39 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             }
         }
     }
+
+    #if DEBUG
+    private static let nativeCaptureQACardBundleID = "com.utuvo.orbit.capturecard20261029"
+
+    private static func prepareNativeCaptureQAOutput() -> URL? {
+        guard let path = Bundle.main.object(forInfoDictionaryKey: "OrbitCaptureQAOutputDirectory") as? String else { return nil }
+        let output = URL(fileURLWithPath: path, isDirectory: true).standardizedFileURL
+        let temporaryRoot = URL(fileURLWithPath: NSTemporaryDirectory(), isDirectory: true).standardizedFileURL.path
+        guard output.path.hasPrefix(temporaryRoot + "/"), !FileManager.default.fileExists(atPath: output.path) else { return nil }
+        do {
+            try FileManager.default.createDirectory(at: output, withIntermediateDirectories: false)
+            let marker = ["bundle": Bundle.main.bundleIdentifier ?? "", "kind": "native-single-frame-qa"]
+            let data = try JSONSerialization.data(withJSONObject: marker, options: [.sortedKeys])
+            try data.write(to: output.appendingPathComponent("session.json"), options: .atomic)
+            return output
+        } catch { return nil }
+    }
+
+    private static func nativeCaptureQAExcludedBundleIDs() -> Set<String> {
+        Set(NSWorkspace.shared.runningApplications.compactMap(\.bundleIdentifier)
+            .filter { $0 != nativeCaptureQACardBundleID })
+    }
+
+    private static func isKnownNativeCaptureQACard(_ filter: SCContentFilter) -> Bool {
+        guard #available(macOS 15.2, *) else { return false }
+        guard filter.style == .window, filter.includedWindows.count == 1,
+              let window = filter.includedWindows.first else { return false }
+        return window.title == "Orbit Test Card 20261029"
+            && window.owningApplication?.bundleIdentifier == nativeCaptureQACardBundleID
+            && filter.contentRect.width == 620
+            && filter.contentRect.height == 432
+    }
+    #endif
 
     private func showSettingsPreview(args: [String]) {
         let name = "orbit.settings.preview.\(UUID().uuidString)"
@@ -745,6 +949,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         values.theme = args.contains("--light") ? .light : .dark
         let preferences = OrbitPreferencesModel(backend: FakePreferencesBackend(initial: values, legacy: nil))
         let updates: OrbitUpdateModel
+        preferences.$values.map(\.language).removeDuplicates()
+            .sink { [weak self] language in self?.mainMenuController?.update(language: language) }
+            .store(in: &cancellables)
+        helpWindowController = OrbitHelpWindowController(preferences: preferences)
         switch Self.argValue(args, after: "--update-mode") {
         case "appStore": updates = OrbitUpdateModel(distribution: .appStore)
         case "unconfigured": updates = OrbitUpdateModel(distribution: .unconfigured)
@@ -754,6 +962,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                      preferences: preferences,
                                      loginItem: .preview(status: args.contains("--login-approval") ? .requiresApproval : .notRegistered),
                                      updates: updates,
+                                     onOpenHelp: { [weak self] in self?.openHelp() },
                                      page: OrbitSettingsView.Page(rawValue: Self.argValue(args, after: "--settings-tab") ?? "general") ?? .general,
                                      preview: true)
         let controller = NSHostingController(rootView: view)

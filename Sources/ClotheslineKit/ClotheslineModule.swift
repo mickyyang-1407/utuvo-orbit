@@ -4,8 +4,8 @@ import Carbon
 // MARK: - UTUVO Orbit module facade
 //
 // The screenshot clothesline (previously the preview app 晾好了 LineDry).
-// Orbit owns the menu bar icon, language and trial gate. While the module is
-// off nothing exists: no panel, no mouse monitor, no hotkey, no folder watch.
+// Orbit owns the menu bar icon and the language. While the module is off
+// nothing exists: no panel, no mouse monitor, no hotkey, no folder watch.
 // It never changes the system screenshot location or system shortcuts.
 
 @MainActor final class RopePanel: NSPanel {

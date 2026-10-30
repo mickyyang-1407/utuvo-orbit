@@ -3,7 +3,7 @@ import CoreGraphics
 @preconcurrency import ScreenCaptureKit
 
 enum ScreenshotCaptureMode: Equatable { case window, display }
-enum ScreenshotCaptureError: Error, Equatable { case cancelled, busy, invalidSize, unavailable, selectionTimedOut }
+enum ScreenshotCaptureError: Error, Equatable { case cancelled, busy, invalidSize, unavailable, selectionRejected, selectionTimedOut, frameTimedOut, frameUnavailable }
 
 @MainActor
 protocol ScreenshotCapturing: AnyObject {
@@ -11,16 +11,30 @@ protocol ScreenshotCapturing: AnyObject {
     func cancel()
 }
 
-/// One explicit system selection, one image. No SCStream or recording exists.
+/// One explicit system selection and one bounded, screen-only stream; no recording UX or files.
 @MainActor
 final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
+    private let eligibleFilter: ((SCContentFilter) -> Bool)?
+    private let filterTransform: ((SCContentFilter, ScreenshotCaptureMode) -> SCContentFilter?)?
+    private let excludedBundleIDs: Set<String>
+    private let frameTimeout: Duration
     private var continuation: CheckedContinuation<CGImage, any Error>?
     private var selectionID: UUID?
     private var requestID: UUID?
     private var observer: ScreenshotPickerObserver?
     private var previousActivationPolicy: NSApplication.ActivationPolicy?
     private var selectionDeadline: Task<Void, Never>?
+    private var frameTask: Task<Void, Never>?
     private let picker = SCContentSharingPicker.shared
+
+    init(frameTimeout: Duration = .seconds(15), excludedBundleIDs: Set<String> = [],
+         eligibleFilter: ((SCContentFilter) -> Bool)? = nil,
+         filterTransform: ((SCContentFilter, ScreenshotCaptureMode) -> SCContentFilter?)? = nil) {
+        self.frameTimeout = frameTimeout
+        self.excludedBundleIDs = excludedBundleIDs
+        self.eligibleFilter = eligibleFilter
+        self.filterTransform = filterTransform
+    }
 
     func capture(_ mode: ScreenshotCaptureMode) async throws -> CGImage {
         guard continuation == nil else { throw ScreenshotCaptureError.busy }
@@ -32,14 +46,15 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
                 self.continuation = continuation; selectionID = nil; requestID = request
                 var config = SCContentSharingPickerConfiguration()
                 config.allowedPickerModes = mode == .window ? [.singleWindow] : [.singleDisplay]
+                config.excludedBundleIDs = excludedBundleIDs.sorted()
                 config.allowsChangingSelectedContent = false
                 picker.defaultConfiguration = config
                 let observer = ScreenshotPickerObserver(
-                    select: { [weak self] filter in self?.selected(filter, request: request) },
+                    select: { [weak self] filter in self?.selected(filter, request: request, mode: mode) },
                     cancel: { [weak self] in self?.cancel(request: request) },
                     fail: { [weak self] error in
-                        guard self?.requestID == request else { return }
-                        self?.finish(.failure(error))
+                        guard let self, self.requestID == request, self.selectionID == nil else { return }
+                        self.finish(.failure(error))
                     })
                 self.observer = observer
                 // Keep the app discoverable during this explicit system selection.
@@ -50,7 +65,7 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
                 picker.maximumStreamCount = 1
                 selectionDeadline = Task { [weak self] in
                     do { try await Task.sleep(for: .seconds(120)) } catch { return }
-                    guard let self, self.requestID == request else { return }
+                    guard let self, self.requestID == request, self.selectionID == nil else { return }
                     self.finish(.failure(ScreenshotCaptureError.selectionTimedOut))
                 }
                 DispatchQueue.main.async { [weak self] in
@@ -62,13 +77,21 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
         } onCancel: { Task { @MainActor [weak self] in self?.cancel(request: request) } }
     }
 
-    func cancel() { finish(.failure(ScreenshotCaptureError.cancelled)) }
-    private func cancel(request: UUID) { if requestID == request { cancel() } }
+    func cancel() {
+        guard let requestID else { return }
+        cancel(request: requestID)
+    }
+    private func cancel(request: UUID) {
+        guard requestID == request else { return }
+        if selectionID != nil, let frameTask { frameTask.cancel(); return }
+        finish(.failure(ScreenshotCaptureError.cancelled))
+    }
 
     private func finish(_ result: Result<CGImage, any Error>) {
         guard let continuation else { return }
         self.continuation = nil; selectionID = nil; requestID = nil
         selectionDeadline?.cancel(); selectionDeadline = nil
+        frameTask = nil
         picker.isActive = false
         if let observer { picker.remove(observer) }; observer = nil
         if let previousActivationPolicy { NSApp.setActivationPolicy(previousActivationPolicy) }
@@ -76,25 +99,42 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
         continuation.resume(with: result)
     }
 
-    private func selected(_ filter: SCContentFilter, request: UUID) {
+    private func selected(_ filter: SCContentFilter, request: UUID, mode: ScreenshotCaptureMode) {
         guard requestID == request, continuation != nil, selectionID == nil else { return }
-        let scale = Double(filter.pointPixelScale)
-        let w = ceil(filter.contentRect.width * scale), h = ceil(filter.contentRect.height * scale)
+        let captureFilter: SCContentFilter
+        if let filterTransform {
+            guard let transformed = filterTransform(filter, mode) else {
+                finish(.failure(ScreenshotCaptureError.selectionRejected)); return
+            }
+            captureFilter = transformed
+        } else {
+            captureFilter = filter
+        }
+        guard eligibleFilter?(captureFilter) ?? true else {
+            finish(.failure(ScreenshotCaptureError.selectionRejected)); return
+        }
+        let scale = Double(captureFilter.pointPixelScale)
+        let w = ceil(captureFilter.contentRect.width * scale), h = ceil(captureFilter.contentRect.height * scale)
         guard w.isFinite, h.isFinite, w >= 1, h >= 1, w <= 32768, h <= 32768, w * h <= 80_000_000 else {
             finish(.failure(ScreenshotCaptureError.invalidSize)); return
         }
         let id = UUID(); selectionID = id
+        selectionDeadline?.cancel(); selectionDeadline = nil
         let config = SCStreamConfiguration()
         config.width = Int(w); config.height = Int(h)
-        config.showsCursor = false; config.capturesAudio = false
+        config.showsCursor = false; config.capturesAudio = false; config.queueDepth = 1
+        if #available(macOS 15.0, *) { config.captureMicrophone = false }
         if #available(macOS 14.2, *) { config.ignoreShadowsSingleWindow = true }
-        Task { [weak self] in
+        let capture = ScreenshotSingleFrameCapture(driver: ScreenCaptureKitSingleFrameDriver(filter: captureFilter, configuration: config))
+        frameTask = Task { [weak self, capture] in
             do {
-                let image = try await SCScreenshotManager.captureImage(contentFilter: filter, configuration: config)
+                let image = try await capture.capture(frameTimeout: self?.frameTimeout ?? .seconds(15))
                 guard let self, self.selectionID == id else { return }
+                self.frameTask = nil
                 self.finish(.success(image))
             } catch {
                 guard let self, self.selectionID == id else { return }
+                self.frameTask = nil
                 self.finish(.failure(error))
             }
         }
