@@ -1,5 +1,12 @@
 # Changelog
 
+## 1.0.0 (19) — local full-App release candidate (not released)
+
+- Offline English/Traditional Chinese help across Settings, the workbench, menus and Command-?; app-menu labels follow the selected language.
+- Cancelling queued screenshot work prevents its backend from starting; immediate retries preserve the new request.
+- Release packaging refuses existing artifacts and can preserve a prepared update ZIP byte-for-byte. Version-default checks keep Direct and MAS metadata aligned.
+- Full-App lifecycle, rendered UI, repeated native capture, performance and final notarized installer acceptance are still pending. Stable downloads and the signed update feed remain unchanged.
+
 ## 0.12.1 (18) — local native-capture candidate
 
 - Replaces the failing selected-content screenshot backend with one complete native screen frame, then stops capture before returning the image. No audio, microphone capture or recording file is created.

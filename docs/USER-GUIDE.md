@@ -2,7 +2,7 @@
 
 Orbit lives in the menu bar. Click its icon for the panel, click outside to dismiss, or use Escape. The pin button keeps the panel open; pinning is session-only. The power button quits Orbit.
 
-Everything below describes the **current local candidate (0.12.1 (18))**. It is a working build on this machine, not a published download — see [Versions and downloads](#versions-and-downloads) for what is actually released.
+Everything below describes the **current local candidate (1.0.0 (19))**. Source builds and focused model checks have passed; complete-App GUI acceptance is still in progress. It is not a published download — see [Versions and downloads](#versions-and-downloads) for what is actually released.
 
 ## Where to start: the help inside the app
 
@@ -143,9 +143,9 @@ The System detail shows batteries macOS exposes through HID properties. Names an
 | --- | --- |
 | **0.4.2** | The stable download. Developer ID signed, Apple-notarized and stapled. This is what the "Releases" link gives you. |
 | **0.9.1** | The published engineering prerelease (`v0.9.1-rc.1`). Signed, notarized and stapled, with the production update key and HTTPS appcast live. |
-| **0.12.1 (18)** | The current local candidate: the workbench, the screenshot editor, the library backups and the offline guide. It is **not** published and **not** notarized yet, so there is no download for it. |
+| **1.0.0 (19)** | The current local candidate: the workbench, the screenshot editor, the library backups and the offline guide. It is **not** published and **not** notarized yet, so there is no download for it. |
 
-The features described above are the 0.12.1 candidate's. The 0.4.2 download has the menu-bar panel and the display preferences, not the workbench.
+The features described above are the 1.0.0 candidate's. The 0.4.2 download has the menu-bar panel and the display preferences, not the workbench.
 
 See [installing](INSTALL.md), [quick tools](TOOLS.md), [screenshots](TOOLS-SCREENSHOTS.md), [library backups](LIBRARY-BACKUPS.md) and [software updates](UPDATING.md).
 

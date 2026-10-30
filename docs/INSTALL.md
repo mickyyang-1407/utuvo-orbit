@@ -6,9 +6,9 @@
 | --- | --- |
 | **0.4.2** | The stable download linked below. Developer ID signed, Apple-notarized and stapled. |
 | **0.9.1** | The published engineering prerelease (`v0.9.1-rc.1`). Signed, notarized and stapled, with the production update key and HTTPS appcast live. |
-| **0.12.1 (18)** | The current local candidate — workbench, screenshot editor, library backups, offline guide. **Not published and not notarized yet, so there is no download for it.** |
+| **1.0.0 (19)** | The current local candidate — workbench, screenshot editor, library backups, offline guide. **Not published and not notarized yet, so there is no download for it.** |
 
-Everything in this file describes how to install the **0.4.2 stable download** and how to verify it. If you are running the 0.12.1 candidate from a local build, it has the same requirements and the same first-launch behaviour; it simply has no notarized artifact yet.
+Everything in this file describes how to install the **0.4.2 stable download** and how to verify it. If you are running the 1.0.0 candidate from a local build, it has the same requirements and the same first-launch behaviour; it simply has no notarized artifact yet.
 
 ## Apple Silicon download
 

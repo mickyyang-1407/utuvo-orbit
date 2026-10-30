@@ -34,8 +34,8 @@ import zipfile
 from pathlib import Path
 
 REPO = Path(__file__).resolve().parent.parent.parent
-VERSION = '0.12.1'
-BUILD_NUMBER = '18'
+VERSION = '1.0.0'
+BUILD_NUMBER = '19'
 STEM = f'UTUVO-Orbit-{VERSION}-arm64'
 SOURCE_ZIP_NAME = f'utuvo-orbit-{VERSION}-source.zip'
 CHECKSUMS_NAME = 'SHA256SUMS.txt'
@@ -119,16 +119,16 @@ class ReleaseWorkflowTest(unittest.TestCase):
 
         # The version sources the checker reads, with the shipped defaults.
         (root / 'project.yml').write_text(
-            'MARKETING_VERSION: "0.12.1"\nCURRENT_PROJECT_VERSION: "18"\n')
+            'MARKETING_VERSION: "1.0.0"\nCURRENT_PROJECT_VERSION: "19"\n')
         (root / 'Sources/UtuvoOrbit').mkdir(parents=True, exist_ok=True)
         (root / 'Sources/UtuvoOrbit/OrbitStyle.swift').write_text(
             'let version = Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")'
-            ' as? String ?? "0.12.1"\n'
+            ' as? String ?? "1.0.0"\n'
             'let build = Bundle.main.object(forInfoDictionaryKey: "CFBundleVersion")'
-            ' as? String ?? "18"\n')
+            ' as? String ?? "19"\n')
         (root / 'Sources/UtuvoOrbit/OrbitPanel.swift').write_text(
             'Text(Bundle.main.object(forInfoDictionaryKey: "CFBundleShortVersionString")'
-            ' as? String ?? "0.12.1")\n')
+            ' as? String ?? "1.0.0")\n')
 
         # The exported showcase page and the disk image background are read.
         (root / 'docs/showcase').mkdir(parents=True, exist_ok=True)
@@ -297,23 +297,23 @@ class ReleaseWorkflowTest(unittest.TestCase):
 
     def test_version_drift_in_project_is_rejected(self):
         project = self.root / 'project.yml'
-        project.write_text(project.read_text().replace('MARKETING_VERSION: "0.12.1"',
-                                                       'MARKETING_VERSION: "0.12.2"'))
+        project.write_text(project.read_text().replace('MARKETING_VERSION: "1.0.0"',
+                                                       'MARKETING_VERSION: "1.0.1"'))
         result = self.run_checker()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('inconsistent', result.stdout + result.stderr)
 
     def test_version_drift_in_build_script_is_rejected(self):
         script = self.root / 'scripts/build-app.sh'
-        script.write_text(script.read_text().replace('BUILD_NUMBER:-18', 'BUILD_NUMBER:-19'))
+        script.write_text(script.read_text().replace('BUILD_NUMBER:-19', 'BUILD_NUMBER:-20'))
         result = self.run_checker()
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('inconsistent', result.stdout + result.stderr)
 
     def test_build_is_blocked_before_any_build_step(self):
         project = self.root / 'project.yml'
-        project.write_text(project.read_text().replace('MARKETING_VERSION: "0.12.1"',
-                                                       'MARKETING_VERSION: "0.12.2"'))
+        project.write_text(project.read_text().replace('MARKETING_VERSION: "1.0.0"',
+                                                       'MARKETING_VERSION: "1.0.1"'))
         result = self.run_script('build-app.sh')
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('Build blocked', result.stderr)
