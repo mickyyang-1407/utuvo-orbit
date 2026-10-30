@@ -21,7 +21,7 @@ files = [
     'scripts/build-app.sh', 'scripts/render-brand.swift', 'scripts/render-release-art.swift',
     'scripts/package-release.sh', 'scripts/dmg-layout.py', 'scripts/export-source.py', 'scripts/sign-app.sh',
     'scripts/optimize-web-images.py',
-    'scripts/prepare-update.py', 'docs/UPDATING.md',
+    'scripts/prepare-update.py', 'scripts/check-version.py', 'docs/UPDATING.md',
     'docs/INSTALL.md', 'docs/USER-GUIDE.md', 'docs/USER-GUIDE.zh-Hant.md', 'docs/TOOLS.md', 'docs/TOOLS-SCREENSHOTS.md',
     'docs/DEVELOPMENT.md', 'docs/LAUNCH-COPY.md', 'docs/LIBRARY-BACKUPS.md',
     # Mac App Store build: source, shims, tests, assets, entitlements.
@@ -29,7 +29,7 @@ files = [
 ]
 directories = [
     'Sources/OrbitCore', 'Sources/UtuvoOrbit', 'Sources/ShelfKit', 'Sources/ClotheslineKit',
-    'Tests', '.github',
+    'Tests', 'scripts/tests', '.github',
     'MAS/Sources', 'MAS/Tests', 'MAS/Shims', 'MAS/ShelfKitShims', 'MAS/Assets.xcassets',
     'docs/assets', 'docs/releases', 'docs/showcase',
 ]

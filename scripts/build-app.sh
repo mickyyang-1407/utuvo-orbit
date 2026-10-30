@@ -5,6 +5,14 @@
 set -euo pipefail
 cd "$(dirname "$0")/.."
 
+# Refuse to build when the shipped version/build defaults disagree. Only the
+# file defaults are compared; VERSION/BUILD_NUMBER overrides still apply to
+# this one build (test bundles) and are not treated as drift.
+if ! python3 scripts/check-version.py; then
+  echo 'Build blocked: version defaults are inconsistent (see above).' >&2
+  exit 1
+fi
+
 CONFIG="${CONFIG:-release}"
 APP_NAME="UTUVO Orbit"
 BUNDLE_ID="com.utuvo.orbit"

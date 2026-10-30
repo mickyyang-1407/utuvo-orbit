@@ -15,6 +15,7 @@ protocol ScreenshotCapturing: AnyObject {
 @MainActor
 final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
     private let eligibleFilter: ((SCContentFilter) -> Bool)?
+    private let filterTransform: ((SCContentFilter, ScreenshotCaptureMode) -> SCContentFilter?)?
     private let excludedBundleIDs: Set<String>
     private let frameTimeout: Duration
     private var continuation: CheckedContinuation<CGImage, any Error>?
@@ -27,10 +28,12 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
     private let picker = SCContentSharingPicker.shared
 
     init(frameTimeout: Duration = .seconds(15), excludedBundleIDs: Set<String> = [],
-         eligibleFilter: ((SCContentFilter) -> Bool)? = nil) {
+         eligibleFilter: ((SCContentFilter) -> Bool)? = nil,
+         filterTransform: ((SCContentFilter, ScreenshotCaptureMode) -> SCContentFilter?)? = nil) {
         self.frameTimeout = frameTimeout
         self.excludedBundleIDs = excludedBundleIDs
         self.eligibleFilter = eligibleFilter
+        self.filterTransform = filterTransform
     }
 
     func capture(_ mode: ScreenshotCaptureMode) async throws -> CGImage {
@@ -47,7 +50,7 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
                 config.allowsChangingSelectedContent = false
                 picker.defaultConfiguration = config
                 let observer = ScreenshotPickerObserver(
-                    select: { [weak self] filter in self?.selected(filter, request: request) },
+                    select: { [weak self] filter in self?.selected(filter, request: request, mode: mode) },
                     cancel: { [weak self] in self?.cancel(request: request) },
                     fail: { [weak self] error in
                         guard let self, self.requestID == request, self.selectionID == nil else { return }
@@ -96,13 +99,22 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
         continuation.resume(with: result)
     }
 
-    private func selected(_ filter: SCContentFilter, request: UUID) {
+    private func selected(_ filter: SCContentFilter, request: UUID, mode: ScreenshotCaptureMode) {
         guard requestID == request, continuation != nil, selectionID == nil else { return }
-        guard eligibleFilter?(filter) ?? true else {
+        let captureFilter: SCContentFilter
+        if let filterTransform {
+            guard let transformed = filterTransform(filter, mode) else {
+                finish(.failure(ScreenshotCaptureError.selectionRejected)); return
+            }
+            captureFilter = transformed
+        } else {
+            captureFilter = filter
+        }
+        guard eligibleFilter?(captureFilter) ?? true else {
             finish(.failure(ScreenshotCaptureError.selectionRejected)); return
         }
-        let scale = Double(filter.pointPixelScale)
-        let w = ceil(filter.contentRect.width * scale), h = ceil(filter.contentRect.height * scale)
+        let scale = Double(captureFilter.pointPixelScale)
+        let w = ceil(captureFilter.contentRect.width * scale), h = ceil(captureFilter.contentRect.height * scale)
         guard w.isFinite, h.isFinite, w >= 1, h >= 1, w <= 32768, h <= 32768, w * h <= 80_000_000 else {
             finish(.failure(ScreenshotCaptureError.invalidSize)); return
         }
@@ -113,7 +125,7 @@ final class SystemScreenshotCapture: NSObject, ScreenshotCapturing {
         config.showsCursor = false; config.capturesAudio = false; config.queueDepth = 1
         if #available(macOS 15.0, *) { config.captureMicrophone = false }
         if #available(macOS 14.2, *) { config.ignoreShadowsSingleWindow = true }
-        let capture = ScreenshotSingleFrameCapture(driver: ScreenCaptureKitSingleFrameDriver(filter: filter, configuration: config))
+        let capture = ScreenshotSingleFrameCapture(driver: ScreenCaptureKitSingleFrameDriver(filter: captureFilter, configuration: config))
         frameTask = Task { [weak self, capture] in
             do {
                 let image = try await capture.capture(frameTimeout: self?.frameTimeout ?? .seconds(15))

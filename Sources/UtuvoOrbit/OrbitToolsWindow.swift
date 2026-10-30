@@ -44,16 +44,23 @@ final class OrbitToolsWindowController {
     private let preferences: OrbitPreferencesModel
     private let preview: Bool
     private let allowFileActionsInPreview: Bool
+    /// Opens the offline guide. The workbench and the help window show the
+    /// same content.
+    private let onOpenHelp: () -> Void
     private(set) var window: NSWindow?
     private var appearanceSubscription: AnyCancellable?
 
     init(preferences: OrbitPreferencesModel, scenes: AudioScenesModel, timer: OrbitTimerModel, preview: Bool = false, allowFileActionsInPreview: Bool = false,
-         screenshots: ScreenshotToolsModel? = nil, defaults: UserDefaults? = nil) {
+         screenshots: ScreenshotToolsModel? = nil, defaults: UserDefaults? = nil,
+         workbenchOverrides: OrbitWorkbenchOverrides? = nil,
+         onOpenHelp: @escaping () -> Void = {}) {
         self.preferences = preferences; self.scenes = scenes; self.timer = timer; self.preview = preview
         self.allowFileActionsInPreview = allowFileActionsInPreview
+        self.onOpenHelp = onOpenHelp
         let workbench = OrbitWorkbench(scenes: scenes, timer: timer, preview: preview,
                                        allowFileActionsInPreview: allowFileActionsInPreview,
-                                       defaults: defaults, language: preferences.values.language)
+                                       defaults: defaults, language: preferences.values.language,
+                                       overrides: workbenchOverrides)
         self.workbench = workbench
         self.files = QuickFileToolsModel(copyText: workbench.copyText)
         self.screenshots = screenshots ?? ScreenshotToolsModel(preview: preview)
@@ -76,6 +83,7 @@ final class OrbitToolsWindowController {
         if let urls { files.setFiles(urls) }
         if window == nil {
             let view = OrbitToolsView(preferences: preferences, scenes: scenes, timer: timer, files: files, screenshots: screenshots, navigation: navigation, workbench: workbench, onOpenActions: { [weak self] in self?.showActions() },
+                                      onOpenHelp: onOpenHelp,
                                       preview: preview, allowFileActionsInPreview: allowFileActionsInPreview)
             let controller = NSHostingController(rootView: view)
             let window = NSWindow(contentViewController: controller)
@@ -151,6 +159,8 @@ struct OrbitToolsView: View {
     @ObservedObject var navigation: OrbitToolsNavigation
     let workbench: OrbitWorkbench
     var onOpenActions: () -> Void
+    /// Opens the offline guide, the same content the Settings help page shows.
+    var onOpenHelp: () -> Void = {}
     var preview = false
     var allowFileActionsInPreview = false
     @State private var renaming: AudioScene?
@@ -252,6 +262,11 @@ struct OrbitToolsView: View {
             }
             .scrollIndicators(.hidden)
             Spacer(minLength: 12)
+            Button { onOpenHelp() } label: {
+                HStack(spacing: 11) { Image(systemName: "questionmark.circle").frame(width: 19); Text(c("使用說明", "Help")).lineLimit(1); Spacer() }
+                    .font(.system(size: 12)).padding(.horizontal, 12).padding(.vertical, 9)
+                    .foregroundStyle(Color.primary.opacity(0.75))
+            }.buttonStyle(.plain).accessibilityLabel(c("開啟使用說明", "Open the guide"))
             Label(c("在你的 Mac 上完成", "Made local"), systemImage: "lock.shield").font(.system(size: 10)).foregroundStyle(.secondary).padding(10)
         }.padding(.horizontal, 12).frame(width: 170).frame(maxHeight: .infinity).background(.primary.opacity(0.025))
     }

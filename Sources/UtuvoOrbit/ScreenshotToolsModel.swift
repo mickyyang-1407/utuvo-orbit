@@ -231,7 +231,10 @@ final class ScreenshotToolsModel: ObservableObject {
         busy = true; failed = false; message = nil
         let id = UUID(); generation = id
         job = Task { [weak self] in
-            do { try await operation() }
+            do {
+                try Task.checkCancellation()
+                try await operation()
+            }
             catch {
                 if let self, self.generation == id { self.show(error) }
             }

@@ -32,6 +32,24 @@ python3 scripts/prepare-update.py create \
 
 The tool verifies the app's update configuration, Developer ID team, nested signatures, stapling, and the signing account's public key before preparing the update. It signs and verifies both ZIP and appcast and records SHA-256 hashes. It does not publish anything. For later versions, place the existing signed appcast in the output folder before generating the next entry; old entries are preserved. Increment `CFBundleVersion` for every update.
 
+### One artifact per release
+
+The ZIP written by `scripts/prepare-update.py` is the authoritative update archive: the appcast signs its exact bytes. The packaging script must not build a second ZIP for the same version. A rebuilt archive can differ byte for byte from the signed one, and the appcast signature would then no longer match the published file.
+
+The local release flow is:
+
+1. Sign and staple the app.
+2. Run `prepare-update.py create` with `--output 'release/<version>'` and a download URL whose file name is `UTUVO-Orbit-<version>-arm64.zip`. This writes the authoritative ZIP, the signed appcast and the update hashes into that folder.
+3. Package the DMG, the source ZIP and the checksums without touching that ZIP:
+
+```sh
+SKIP_BUILD=1 SKIP_APP_ZIP=1 APP_PATH='/absolute/path/UTUVO Orbit.app' bash scripts/package-release.sh
+```
+
+4. Verify the published file: the ZIP hash against `update-sha256.json` and against `SHA256SUMS.txt`, and the enclosure length in the appcast against the ZIP on disk.
+
+`scripts/package-release.sh` refuses to run when an output artifact already exists and never overwrites or deletes one. With `SKIP_APP_ZIP=1` the prepared ZIP is kept exactly as prepared — same bytes, same size, same modification time — and the script checks it again after packaging. Plain offline packaging still produces its own ZIP for a version that has no signed update archive yet; it must not be used to replace one that does.
+
 Publish the matching ZIP first, then place the signed `appcast.xml` at the configured HTTPS feed URL. Never edit the XML after signing. Verify the published file hashes and test a real update in an isolated installation before announcing it.
 
 People using releases before 0.6 need to install an updater-enabled version once. An older binary with no updater cannot bootstrap this feature itself.
@@ -49,4 +67,4 @@ The separately identified `com.utuvo.orbit.updateverification20261029` edition c
 
 Both test editions were signed with UTUVO Developer ID and notarized. Their embedded production public key matches the normal app. The signed test feed and archives are served over public HTTPS under the separate `updates/verification-20261029/` path. A deliberately damaged archive was refused, leaving build 13 installed. With automatic updates enabled and only the isolated suite’s last-check date moved into the past, relaunch triggered a background check and download without a manual check. The cached ZIP hash matched the signed archive. Install and Relaunch replaced build 13 with build 14, the new app wrote its launch receipt, and the window showed 0.9.1 (14). Automatic-update preferences survived. A further check reported that the version was current.
 
-This verifies the real Orbit updater in an isolated bundle. It does not claim an upgrade was performed on the daily-use Orbit installation. Native screenshot acceptance is separate: the system picker opens, but no selected native frame has been accepted yet. Direct ScreenCaptureKit permission diagnostics return -3801, and refreshing that permission requires the owner’s macOS authentication.
+This verifies the real Orbit updater in an isolated bundle. It does not claim an upgrade was performed on the daily-use Orbit installation. Native screenshot acceptance is separate. On 2026-10-30, an isolated generated test-card window was captured through the system picker and passed local editing, PNG, OCR and copy readback checks. That scoped result does not establish unrestricted display capture or the later complete-App acceptance matrix. The earlier -3801 result came from a different one-shot capture path; it does not show that the system picker requires broad screen-recording permission or owner authentication.

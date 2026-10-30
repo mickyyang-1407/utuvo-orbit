@@ -12,30 +12,111 @@ import ClotheslineKit
 struct UtuvoOrbitMain {
     @MainActor static func main() {
         let app = NSApplication.shared
-        installEditingMenu(app)
+        let menu = OrbitMainMenuController()
+        menu.install(in: app)
         let delegate = AppDelegate()
+        delegate.mainMenuController = menu
+        // The Help item needs a target that can open the guide, and the
+        // delegate is the only object that knows how.
+        menu.setHelpTarget(delegate)
         app.delegate = delegate
         app.setActivationPolicy(.accessory)
         withExtendedLifetime(delegate) { app.run() }
     }
+}
 
-    /// An accessory app still needs a responder-chain Edit menu for standard text shortcuts.
-    @MainActor private static func installEditingMenu(_ app: NSApplication) {
-        let c = ToolCopy(language: .system)
-        let menu = NSMenu()
-        let application = NSMenuItem(); let applicationMenu = NSMenu()
-        applicationMenu.addItem(withTitle: c("結束 UTUVO Orbit", "Quit UTUVO Orbit"), action: #selector(NSApplication.terminate(_:)), keyEquivalent: "q")
-        application.submenu = applicationMenu; menu.addItem(application)
-        let edit = NSMenuItem(); let editMenu = NSMenu(title: c("編輯", "Edit"))
-        for (title, selector, key, shift) in [
-            (c("復原", "Undo"), "undo:", "z", false), (c("重做", "Redo"), "redo:", "z", true),
-            (c("剪下", "Cut"), "cut:", "x", false), (c("複製", "Copy"), "copy:", "c", false),
-            (c("貼上", "Paste"), "paste:", "v", false), (c("全選", "Select All"), "selectAll:", "a", false)
-        ] {
-            let item = editMenu.addItem(withTitle: title, action: Selector(selector), keyEquivalent: key)
-            item.keyEquivalentModifierMask = shift ? [.command, .shift] : [.command]
+/// The shape of the app's main menu, with no AppKit types in it.
+///
+/// The menu is described as plain values so its structure — the standard
+/// responder-chain edit items, their key equivalents, and the app-local Help
+/// item — can be checked without a running application.
+struct OrbitMainMenuSpec {
+    struct Entry: Equatable {
+        let titleKey: String
+        /// The selector name, e.g. `undo:`.
+        let action: String
+        let keyEquivalent: String
+        /// Shift is spelled out separately: Redo is the only shifted item.
+        let shift: Bool
+    }
+    struct Menu: Equatable {
+        let id: String
+        /// Empty for the application menu, whose title is the brand name and
+        /// is therefore never translated.
+        let titleKey: String
+        let entries: [Entry]
+    }
+
+    static let application = "application"
+    static let edit = "edit"
+    static let help = "help"
+
+    static func menus() -> [Menu] {
+        [
+            Menu(id: application, titleKey: "", entries: [
+                Entry(titleKey: "orbit.menu.application.quit", action: "terminate:", keyEquivalent: "q", shift: false)
+            ]),
+            Menu(id: edit, titleKey: "orbit.menu.edit.title", entries: [
+                Entry(titleKey: "orbit.menu.edit.undo", action: "undo:", keyEquivalent: "z", shift: false),
+                Entry(titleKey: "orbit.menu.edit.redo", action: "redo:", keyEquivalent: "z", shift: true),
+                Entry(titleKey: "orbit.menu.edit.cut", action: "cut:", keyEquivalent: "x", shift: false),
+                Entry(titleKey: "orbit.menu.edit.copy", action: "copy:", keyEquivalent: "c", shift: false),
+                Entry(titleKey: "orbit.menu.edit.paste", action: "paste:", keyEquivalent: "v", shift: false),
+                Entry(titleKey: "orbit.menu.edit.selectAll", action: "selectAll:", keyEquivalent: "a", shift: false)
+            ]),
+            Menu(id: help, titleKey: "orbit.menu.help.title", entries: [
+                // "?" implies shift on the keyboard; AppKit adds it itself.
+                Entry(titleKey: "orbit.menu.help.item", action: "showOrbitHelp:", keyEquivalent: "?", shift: false)
+            ])
+        ]
+    }
+}
+
+/// Builds the app's main menu and keeps its titles in the app's language.
+///
+/// An accessory app shows no menu bar, but the main menu still carries the
+/// key equivalents (⌘Z, ⌘C, ⌘? …). A menu frozen in the system language
+/// reads in the wrong language and misleads about what the app does, so the
+/// titles are re-applied once the preferences are known and again on every
+/// language change.
+@MainActor
+final class OrbitMainMenuController {
+    private let menu = NSMenu()
+    private var localizedTitles: [(item: NSMenuItem, key: String)] = []
+    private var helpItem: NSMenuItem?
+
+    init() { build() }
+
+    func install(in app: NSApplication) { app.mainMenu = menu }
+
+    /// The Help item needs a target that can open the guide; the app
+    /// delegate is the only object that knows how.
+    func setHelpTarget(_ target: AnyObject?) { helpItem?.target = target }
+
+    /// Re-titles the menu in `language`.
+    func update(language: AppLanguage) {
+        let strings = OrbitStrings(language: language)
+        for entry in localizedTitles { entry.item.title = strings(entry.key) }
+    }
+
+    private func build() {
+        let strings = OrbitStrings(language: .system)
+        for menuSpec in OrbitMainMenuSpec.menus() {
+            let item = NSMenuItem()
+            item.title = menuSpec.titleKey.isEmpty ? "UTUVO Orbit" : strings(menuSpec.titleKey)
+            let submenu = NSMenu(title: item.title)
+            for entry in menuSpec.entries {
+                let sub = NSMenuItem(title: strings(entry.titleKey),
+                                     action: Selector(entry.action), keyEquivalent: entry.keyEquivalent)
+                sub.keyEquivalentModifierMask = entry.shift ? [.command, .shift] : [.command]
+                submenu.addItem(sub)
+                localizedTitles.append((sub, entry.titleKey))
+                if menuSpec.id == OrbitMainMenuSpec.help { helpItem = sub }
+            }
+            if !menuSpec.titleKey.isEmpty { localizedTitles.append((item, menuSpec.titleKey)) }
+            item.submenu = submenu
+            menu.addItem(item)
         }
-        edit.submenu = editMenu; menu.addItem(edit); app.mainMenu = menu
     }
 }
 
@@ -74,6 +155,12 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     /// Settings window that switches them on. `nil` in isolated modes.
     private var modules: OrbitModules?
     private var settingsWindow: OrbitSettingsWindowController?
+    /// Owned by `UtuvoOrbitMain`, which builds the menu before the delegate
+    /// exists. The delegate re-titles it once the preferences are known.
+    fileprivate var mainMenuController: OrbitMainMenuController?
+    /// The offline guide. One window, shared by the Settings page, the
+    /// menu-bar context menu and the workbench.
+    private var helpWindowController: OrbitHelpWindowController?
     private var updates: OrbitUpdateModel?
     private var toolsWindow: OrbitToolsWindowController?
     private var settingsPreviewDefaults: (UserDefaults, String)?
@@ -105,10 +192,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     }
 
     func applicationDidFinishLaunching(_ notification: Notification) {
-        #if DEBUG && ORBIT_NATIVE_CAPTURE_QA
+        #if DEBUG && ORBIT_COMPLETE_APP_QA
+        guard let completeAppQA = try? CompleteAppQARoot.open(bundleIdentifier: Bundle.main.bundleIdentifier,
+                                                             info: Bundle.main.infoDictionary ?? [:]) else {
+            NSApp.terminate(nil); return
+        }
+        let completeAppQAEnabled = true
+        #else
+        let completeAppQAEnabled = false
+        #endif
+        #if DEBUG && ORBIT_NATIVE_CAPTURE_QA && !ORBIT_COMPLETE_APP_QA
         launchNativeCaptureQA()
         #else
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let args: [String] = []
+#else
         let args = CommandLine.arguments
+#endif
         #if ORBIT_UPDATE_VERIFICATION && !MAS
         let verification = OrbitUpdateVerification(); updateVerification = verification; verification.start(); return
         #endif
@@ -129,11 +229,15 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         }
         let diagnose = args.contains("--diagnose")
         let gallery = args.contains("--gallery")
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let fixtureName: String? = "desktop"
+#else
         let fixtureName = Self.argValue(args, after: "--fixture")
+#endif
         // A hosted unit test is isolated as well. The check comes before any
         // live setup, so a hosted test reads no marker, no real preferences
         // and opens no shelf window.
-        let isolated = diagnose || gallery || fixtureName != nil || Self.isTestHost
+        let isolated = completeAppQAEnabled || diagnose || gallery || fixtureName != nil || Self.isTestHost
 
         // `FixtureFactory.resolve` is the ONE place that maps a fixture NAME
         // to its (snapshot, preferences, peripherals) — previously only
@@ -141,6 +245,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // "percent-center"/"classic" this way, so `--fixture percent-center`
         // from the CLI silently launched with default preferences and the
         // real menubar ignored the name entirely.
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        preferencesBackend = completeAppQA.makePreferencesBackend()
+#else
         if isolated, let fixtureName {
             let resolved = FixtureFactory.resolve(fixtureName)
             preferencesBackend = FakePreferencesBackend(initial: resolved.preferences, legacy: nil)
@@ -149,11 +256,19 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         } else {
             preferencesBackend = LivePreferencesBackend()
         }
+#endif
         preferencesModel = OrbitPreferencesModel(backend: preferencesBackend)
         // Preview language overrides are confined to the fake preferences backend.
         if isolated, let raw = Self.argValue(args, after: "--language"), let language = AppLanguage(rawValue: raw) {
             preferencesModel.update { $0.language = language }
         }
+        // The main menu's titles follow the app language. This fires once
+        // with the language the preferences actually hold — including a
+        // preview override — and again on every later change.
+        preferencesModel.$values.map(\.language).removeDuplicates()
+            .sink { [weak self] language in self?.mainMenuController?.update(language: language) }
+            .store(in: &cancellables)
+        helpWindowController = OrbitHelpWindowController(preferences: preferencesModel)
 
         if let fixtureName {
             let resolved = FixtureFactory.resolve(fixtureName)
@@ -236,18 +351,88 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
            NSRunningApplication.runningApplications(withBundleIdentifier: id).contains(where: { $0.processIdentifier != ProcessInfo.processInfo.processIdentifier }) {
             NSApp.terminate(nil); return
         }
-        if !isolated {
-        let modules = OrbitModules(defaults: .standard, language: preferencesModel.values.language.rawValue,
-                                   libraryRoot: OrbitModules.defaultLibraryRoot())
+        if !isolated || completeAppQAEnabled {
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let qaRoot = completeAppQA
+        let defaults = qaRoot.defaults
+        let libraryRoot = qaRoot.storeURL(.clothesline)
+        defaults.set(false, forKey: OrbitModules.enabledKey(.shelf))
+        defaults.set(false, forKey: OrbitModules.enabledKey(.clothesline))
+#else
+        let defaults = UserDefaults.standard
+        let libraryRoot = OrbitModules.defaultLibraryRoot()
+#endif
+        let modules = OrbitModules(defaults: defaults, language: preferencesModel.values.language.rawValue,
+                                   libraryRoot: libraryRoot)
         self.modules = modules
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let updates = OrbitUpdateModel(distribution: .unconfigured)
+#else
         let updates = OrbitUpdateModel.live()
+#endif
         self.updates = updates
         updates.start()
-        settingsWindow = OrbitSettingsWindowController(modules: modules, preferences: preferencesModel, updates: updates)
-        let scenes = AudioScenesModel(defaults: .standard, routing: LiveAudioSceneRouting(), audio: audioBackend, awake: awakeBackend)
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let loginItem = LoginItemModel.preview()
+#else
+        let loginItem = LoginItemModel()
+#endif
+        settingsWindow = OrbitSettingsWindowController(modules: modules, preferences: preferencesModel, updates: updates,
+                                                      loginItem: loginItem,
+                                                      onOpenHelp: { [weak self] in self?.openHelp() })
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let sceneRouting: any AudioSceneRouting = PreviewSceneRouting()
+#else
+        let sceneRouting: any AudioSceneRouting = LiveAudioSceneRouting()
+#endif
+        let scenes = AudioScenesModel(defaults: defaults, routing: sceneRouting, audio: audioBackend, awake: awakeBackend)
         scenes.onReadback = { [weak self] in self?.monitor.refreshAudioOnly() }
+#if DEBUG && ORBIT_COMPLETE_APP_QA
+        let timerAwake: any AwakeBackend = FakeAwakeBackend()
+        let timer = OrbitTimerModel(awake: timerAwake, defaults: defaults,
+                                    notifications: PreviewToolNotifications())
+        var workbenchOverrides: OrbitWorkbenchOverrides?
+        var screenshots: ScreenshotToolsModel?
+        let policy = CompleteAppQACapturePolicy()
+        let excluded = Set(NSWorkspace.shared.runningApplications.compactMap { application -> String? in
+            guard let identifier = application.bundleIdentifier,
+                  identifier != CompleteAppQAPolicy.cardBundleID else { return nil }
+            return identifier
+        })
+        let capture = SystemScreenshotCapture(excludedBundleIDs: excluded,
+                                              filterTransform: { filter, mode in policy.transform(filter, mode: mode) })
+        screenshots = ScreenshotToolsModel(root: qaRoot.storeURL(.screenshots), capture: capture,
+                                           copyImage: { image in
+                                               do { _ = try qaRoot.writeImageReceipt(image) }
+                                               catch { fputs("orbit QA image receipt failed\n", stderr) }
+                                           },
+                                           copyText: { text in
+                                               do { _ = try qaRoot.writeTextReceipt(text) }
+                                               catch { fputs("orbit QA text receipt failed\n", stderr) }
+                                           })
+        let qaClipboard = PreviewClipboardAccess()
+        workbenchOverrides = OrbitWorkbenchOverrides(
+            storageRoot: qaRoot.dataURL,
+            clipboard: qaClipboard,
+            awake: FakeAwakeBackend(),
+            modeApplicationOpening: PreviewModeApplicationOpening(),
+            notifications: PreviewToolNotifications(),
+            actionShortcut: PreviewActionShortcut(),
+            quickLinkOpening: PreviewQuickLinkOpener(),
+            copyText: { text in
+                qaClipboard.write(ClipboardEntry(text: text))
+                do { _ = try qaRoot.writeTextReceipt(text) }
+                catch { fputs("orbit QA text receipt failed\n", stderr) }
+            })
+#else
+        let timer = OrbitTimerModel(awake: makeLiveAwakeBackend(), defaults: defaults)
+        let workbenchOverrides: OrbitWorkbenchOverrides? = nil
+        let screenshots: ScreenshotToolsModel? = nil
+#endif
         let tools = OrbitToolsWindowController(preferences: preferencesModel, scenes: scenes,
-                                              timer: OrbitTimerModel(awake: makeLiveAwakeBackend(), defaults: .standard), defaults: .standard)
+                                              timer: timer, screenshots: screenshots, defaults: defaults,
+                                              workbenchOverrides: workbenchOverrides,
+                                              onOpenHelp: { [weak self] in self?.openHelp() })
         tools.files.shelfFiles = { [weak modules] in modules?.shelf.fileURLs ?? [] }
         tools.screenshots.canSendToClothesline = { [weak modules] in modules?.clothesline.isRunning ?? false }
         tools.screenshots.onSendToClothesline = { [weak modules] url in modules?.clothesline.addCopy(url) ?? false }
@@ -261,9 +446,9 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         // Orbit is free: no purchase, no trial, no entitlement and no
         // account, so nothing is gated. The only thing read from the shared
         // group container is the legacy UTUVO Drop adoption marker.
-        dropHandoff = DropHandoff.read()
+        if !completeAppQAEnabled { dropHandoff = DropHandoff.read() }
         // Someone who used UTUVO Drop gets its file shelf switched on once.
-        if dropHandoff.dropWasUsed { modules.adoptDropUser() }
+        if !completeAppQAEnabled, dropHandoff.dropWasUsed { modules.adoptDropUser() }
         #endif
         preferencesModel.$values.map(\.language).removeDuplicates().dropFirst()
             .sink { [weak modules] language in modules?.setLanguage(language.rawValue) }
@@ -304,7 +489,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                                                                 networkBackend: networkBackend,
                                                                                 systemBackend: systemBackend,
                                                                                 awakeBackend: awakeBackend,
-                                                                                preview: fixtureName != nil,
+                                                                                preview: fixtureName != nil && !completeAppQAEnabled,
                                                                                 initialTab: Self.initialPanelTab(args),
                                                                                 onPinChanged: { [weak self] pinned in
                                                                                     guard let self else { return }
@@ -519,6 +704,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
             actions.target = self; menu.addItem(actions)
             let screenshot = NSMenuItem(title: l("截圖與編修…"), action: #selector(openScreenshotTools), keyEquivalent: "")
             screenshot.target = self; menu.addItem(screenshot)
+            let help = NSMenuItem(title: l("使用說明…"), action: #selector(showOrbitHelp(_:)), keyEquivalent: "")
+            help.target = self; menu.addItem(help)
             if let updates {
                 let update = NSMenuItem(title: l(updates.distribution == .appStore ? "在 App Store 更新" : "檢查更新…"),
                                         action: #selector(checkForUpdates), keyEquivalent: "")
@@ -550,6 +737,13 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
     @objc private func openSettings() {
         if popover.isShown { popover.performClose(nil) }
         settingsWindow?.show()
+    }
+    /// Opens the offline guide. Reached from the menu-bar context menu, from
+    /// the workbench, from the Settings help page and from ⌘? in the main
+    /// menu — one window, one copy of the words.
+    @objc private func showOrbitHelp(_ sender: Any?) { openHelp() }
+    private func openHelp() {
+        helpWindowController?.show()
     }
     @objc private func openToolsMenu() { openTools() }
     @objc private func openActionsMenu() {
@@ -655,6 +849,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let values = OrbitPreferencesValues(theme: args.contains("--light") ? .light : .dark,
                                             language: AppLanguage(rawValue: Self.argValue(args, after: "--language") ?? "en") ?? .english)
         let preferences = OrbitPreferencesModel(backend: FakePreferencesBackend(initial: values, legacy: nil))
+        // The preview runs in its own language; the menu and the guide follow
+        // it, so a QA capture never shows a mismatched mix.
+        mainMenuController?.update(language: preferences.values.language)
+        helpWindowController = OrbitHelpWindowController(preferences: preferences)
         let routing = PreviewSceneRouting()
         let scenes = AudioScenesModel(defaults: nil, routing: routing, audio: AudioBackendImpl(driver: routing.driver), awake: FakeAwakeBackend())
         let l = OrbitStrings(language: values.language)
@@ -689,7 +887,8 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         let screenshots = ScreenshotToolsModel(capture: screenshotCapture, preview: true, copyImage: copyImage, copyText: copyText)
         screenshots.loadFixture()
         let tools = OrbitToolsWindowController(preferences: preferences, scenes: scenes, timer: timer, preview: true,
-                                              allowFileActionsInPreview: allowFileActions, screenshots: screenshots)
+                                              allowFileActionsInPreview: allowFileActions, screenshots: screenshots,
+                                              onOpenHelp: { [weak self] in self?.openHelp() })
         toolsWindow = tools
         tools.files.setFiles([URL(fileURLWithPath: "/fixture/cover.png"), URL(fileURLWithPath: "/fixture/notes.txt")])
         let initialPage = nativeCaptureQAOutput == nil ? (Self.argValue(args, after: "--tools-tab") ?? "modes") : "screenshots"
@@ -750,6 +949,10 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
         values.theme = args.contains("--light") ? .light : .dark
         let preferences = OrbitPreferencesModel(backend: FakePreferencesBackend(initial: values, legacy: nil))
         let updates: OrbitUpdateModel
+        preferences.$values.map(\.language).removeDuplicates()
+            .sink { [weak self] language in self?.mainMenuController?.update(language: language) }
+            .store(in: &cancellables)
+        helpWindowController = OrbitHelpWindowController(preferences: preferences)
         switch Self.argValue(args, after: "--update-mode") {
         case "appStore": updates = OrbitUpdateModel(distribution: .appStore)
         case "unconfigured": updates = OrbitUpdateModel(distribution: .unconfigured)
@@ -759,6 +962,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate, NSPopoverDelegate {
                                      preferences: preferences,
                                      loginItem: .preview(status: args.contains("--login-approval") ? .requiresApproval : .notRegistered),
                                      updates: updates,
+                                     onOpenHelp: { [weak self] in self?.openHelp() },
                                      page: OrbitSettingsView.Page(rawValue: Self.argValue(args, after: "--settings-tab") ?? "general") ?? .general,
                                      preview: true)
         let controller = NSHostingController(rootView: view)
